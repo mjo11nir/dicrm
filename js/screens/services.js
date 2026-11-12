@@ -1,29 +1,37 @@
-// «Услуги и товары» — этап 1: услуги по категориям (название, длительность, цена,
-// перерыв после, интервал повторного визита, активна/скрыта). Товары — в следующих этапах.
+// «Услуги и товары»: услуги по категориям (название, длительность, цена, перерыв после,
+// интервал повторного визита, активна/скрыта) и товары (цена, себестоимость, остаток).
 
 import * as data from '../db.js';
-import { el, navBar, groupedList, toggle, openSheet, field, toast, confirmAction, actionSheet, emptyState } from '../components/ui.js';
+import { el, navBar, groupedList, toggle, openSheet, field, toast, confirmAction, actionSheet, emptyState, segmented } from '../components/ui.js';
 import { icon } from '../components/icons.js';
 import { formatDuration } from '../utils/dates.js';
 import { moneyFull, parseMoney, centsToInput } from '../utils/money.js';
 
 export function ServicesScreen(params, nav) {
+  let tab = 'services';
   const root = el('div', { class: 'page' });
   const body = el('div', { class: 'page-body' });
+  const seg = segmented({
+    options: [{ value: 'services', label: 'Услуги' }, { value: 'products', label: 'Товары' }],
+    value: tab,
+    full: true,
+    onChange: (v) => { tab = v; refresh(); },
+  });
   root.append(navBar({
-    title: 'Услуги',
+    title: 'Услуги и товары',
     onBack: () => nav.pop(),
-    right: el('button', { class: 'icon-btn primary', type: 'button', 'aria-label': 'Добавить', html: icon('plus'), onclick: () => actionSheet({
+    right: el('button', { class: 'icon-btn primary', type: 'button', 'aria-label': 'Добавить', html: icon('plus'), onclick: () => (tab === 'products' ? editProduct(null) : actionSheet({
       actions: [
         { label: 'Новая услуга', bold: true, onClick: () => editService(null) },
         { label: 'Новая категория', onClick: () => editCategory(null) },
       ],
-    }) }),
-  }), body);
+    })) }),
+  }), el('div', { class: 'seg-bar' }, seg), body);
 
   let categories = [];
 
   async function refresh() {
+    if (tab === 'products') return refreshProducts();
     const [cats, services] = await Promise.all([data.getAll('serviceCategories'), data.getAll('services')]);
     categories = cats.sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
     body.replaceChildren();
@@ -52,6 +60,62 @@ export function ServicesScreen(params, nav) {
     }
     body.appendChild(el('button', { class: 'btn btn-outline', type: 'button', onclick: () => editCategory(null) }, 'Добавить категорию'));
   }
+
+  // ---------- Товары ----------
+
+  async function refreshProducts() {
+    const products = (await data.getAll('products')).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    if (!products.length) {
+      body.replaceChildren(emptyState({ title: 'Товаров пока нет', text: 'Добавьте товары, которые продаёте клиентам: масла, кремы, пилки.', action: { label: 'Добавить товар', onClick: () => editProduct(null) } }));
+      return;
+    }
+    const stockValue = products.reduce((s, p) => s + (p.cost || 0) * (p.stock || 0), 0);
+    body.replaceChildren(groupedList(products.map((p) => ({
+      title: p.name,
+      subtitle: `${moneyFull(p.price)} · себестоимость ${moneyFull(p.cost || 0)}`,
+      value: `${p.stock || 0} шт.`,
+      onClick: () => editProduct(p),
+    })), { footer: `Остаток по себестоимости: ${moneyFull(stockValue)}` }));
+  }
+
+  function editProduct(p) {
+    const nameIn = el('input', { class: 'input', type: 'text', placeholder: 'Название товара', value: p?.name || '' });
+    const priceIn = el('input', { class: 'input', type: 'text', inputmode: 'decimal', placeholder: '0', value: centsToInput(p?.price || 0) });
+    const costIn = el('input', { class: 'input', type: 'text', inputmode: 'decimal', placeholder: '0', value: centsToInput(p?.cost || 0) });
+    const stockIn = el('input', { class: 'input', type: 'number', min: 0, step: 1, inputmode: 'numeric', value: p?.stock ?? 0 });
+    const content = el('div', { class: 'form' }, el('div', { class: 'form-section' },
+      field('Название', nameIn),
+      el('div', { class: 'grid2' }, field('Цена', priceIn), field('Себестоимость', costIn)),
+      field('Остаток, шт.', stockIn)));
+    if (p) {
+      content.appendChild(el('button', { class: 'btn btn-danger-outline', type: 'button', onclick: async () => {
+        if (!(await confirmAction({ title: 'Удалить товар?', okText: 'Удалить', danger: true }))) return;
+        await data.remove('products', p.id);
+        sheet.close();
+        toast('Товар удалён', { undo: () => data.restore('products', p.id) });
+      } }, 'Удалить товар'));
+    }
+    const sheet = openSheet({
+      title: p ? 'Товар' : 'Новый товар',
+      content,
+      actionText: 'Сохранить',
+      cancelText: 'Отмена',
+      onAction: async () => {
+        if (!nameIn.value.trim()) { toast('Введите название'); return false; }
+        await data.save('products', {
+          ...(p || {}),
+          name: nameIn.value.trim(),
+          price: parseMoney(priceIn.value),
+          cost: parseMoney(costIn.value),
+          stock: Math.max(0, parseInt(stockIn.value, 10) || 0),
+        });
+        toast(p ? 'Товар сохранён' : 'Товар добавлен');
+        return true;
+      },
+    });
+  }
+
+  // ---------- Услуги ----------
 
   function editService(s, categoryId = null) {
     const st = s ? { ...s } : { name: '', categoryId: categoryId || categories[0]?.id || null, duration: 60, price: 0, breakAfter: 0, repeatDays: 21, active: true };

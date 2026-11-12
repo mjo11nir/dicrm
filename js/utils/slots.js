@@ -103,12 +103,15 @@ export function getFreeIntervals({ date, hours, appointments = [], breaks = [], 
 /**
  * Свободные окна дня — времена начала слотов стандартной длительности.
  * Каждый свободный промежуток режется на слоты от его начала: 9:00, 11:00, 13:00…
+ * @param {number} [step] — шаг между началами слотов (по умолчанию равен длительности слота,
+ *   меньший шаг даёт больше вариантов начала — используется в «Найти и записать»)
  * @returns {number[]} минуты начала слотов
  */
-export function getFreeSlots({ date, hours, appointments = [], breaks = [], now = new Date(), slotDuration = 120 }) {
+export function getFreeSlots({ date, hours, appointments = [], breaks = [], now = new Date(), slotDuration = 120, step = 0 }) {
   const slots = [];
+  const inc = step > 0 ? step : slotDuration;
   for (const i of getFreeIntervals({ date, hours, appointments, breaks, now, minGap: 1 })) {
-    for (let s = i.start; s + slotDuration <= i.end; s += slotDuration) slots.push(s);
+    for (let s = i.start; s + slotDuration <= i.end; s += inc) slots.push(s);
   }
   return slots;
 }
@@ -117,12 +120,12 @@ export function getFreeSlots({ date, hours, appointments = [], breaks = [], now 
  * Свободные окна за период (включительно). Нерабочие дни и дни без окон пропускаются.
  * @returns {{date: string, slots: number[]}[]}
  */
-export function getFreeSlotsRange({ from, to, schedule, exceptions = [], appointments = [], breaks = [], now = new Date(), slotDuration = 120 }) {
+export function getFreeSlotsRange({ from, to, schedule, exceptions = [], appointments = [], breaks = [], now = new Date(), slotDuration = 120, step = 0 }) {
   const result = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
     const hours = getDayHours(d, schedule, exceptions);
     if (!hours.working) continue;
-    const slots = getFreeSlots({ date: d, hours, appointments, breaks, now, slotDuration });
+    const slots = getFreeSlots({ date: d, hours, appointments, breaks, now, slotDuration, step });
     if (slots.length) result.push({ date: d, slots });
   }
   return result;

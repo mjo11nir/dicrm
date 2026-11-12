@@ -142,6 +142,13 @@ function buildTabBar() {
   return bar;
 }
 
+/** Применить настройки, влияющие на всё приложение: валюта, акцентный цвет, название */
+function applySettings(s) {
+  setCurrency(s.currency);
+  if (s.accent) document.documentElement.style.setProperty('--primary', s.accent);
+  document.title = s.appName;
+}
+
 async function start() {
   const root = document.getElementById('app');
   try {
@@ -151,8 +158,7 @@ async function start() {
     toast('Не удалось подготовить базу данных');
   }
   app.settings = await getSettings();
-  setCurrency(app.settings.currency);
-  document.title = app.settings.appName;
+  applySettings(app.settings);
 
   const panes = el('main', { class: 'panes' });
   for (const t of TABS) {
@@ -167,7 +173,7 @@ async function start() {
 
   window.addEventListener('db:change', async () => {
     app.settings = await getSettings();
-    setCurrency(app.settings.currency);
+    applySettings(app.settings);
     onDataChange();
   });
 

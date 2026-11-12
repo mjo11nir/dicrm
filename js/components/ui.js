@@ -143,6 +143,48 @@ export function openSheet({ title = '', content, actionText = '', onAction = nul
 }
 
 /**
+ * Модальный экран на всю высоту, выезжает снизу. NavBar: слева «Закрыть», заголовок по центру.
+ * @param {{title: string, content: Node, onClose?: Function}} o
+ * @returns {{close: Function, el: HTMLElement, body: HTMLElement}}
+ */
+export function openModal({ title, content, onClose = null }) {
+  const modal = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title });
+  const body = el('div', { class: 'modal-body' }, content);
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    modal.classList.remove('show');
+    setTimeout(() => modal.remove(), 340);
+    onClose?.();
+  };
+  modal.append(
+    el('div', { class: 'navbar modal-nav' },
+      el('div', { class: 'navbar-side' }, el('button', { class: 'link-btn', type: 'button', onclick: close }, 'Закрыть')),
+      el('div', { class: 'navbar-title' }, title),
+      el('div', { class: 'navbar-side right' })),
+    body);
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('show'));
+  return { close, el: modal, body };
+}
+
+/** Однократная загрузка внешнего скрипта (библиотеки по CDN подключаются по требованию) */
+const scriptCache = new Map();
+export function loadScript(src) {
+  if (!scriptCache.has(src)) {
+    scriptCache.set(src, new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = () => { scriptCache.delete(src); reject(new Error('Не удалось загрузить ' + src)); };
+      document.head.appendChild(s);
+    }));
+  }
+  return scriptCache.get(src);
+}
+
+/**
  * Лист выбора действия (как iOS action sheet).
  * @param {{title?: string, actions: {label: string, onClick: Function, danger?: boolean, icon?: string}[]}} o
  */

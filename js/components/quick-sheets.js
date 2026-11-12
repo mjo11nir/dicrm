@@ -1,36 +1,10 @@
-// Небольшие листы для быстрых действий Главной:
-// ближайшие свободные окна, шаблон напоминания, финансы месяца.
+// Небольшие листы для быстрых действий: шаблон напоминания, финансы месяца.
 
 import * as data from '../db.js';
-import { el, openSheet, toast, groupedList, emptyState } from './ui.js';
-import { openAppointmentForm } from './appointment-form.js';
-import { getFreeSlotsRange } from '../utils/slots.js';
-import { today, addDays, fromMinShort, formatDayShort, MONTHS, startOfMonth, endOfMonth } from '../utils/dates.js';
+import { el, openSheet, toast, groupedList } from './ui.js';
+import { today, MONTHS, startOfMonth, endOfMonth } from '../utils/dates.js';
 import { moneyFull } from '../utils/money.js';
 import { countsInRevenue } from '../utils/appt.js';
-
-/** Ближайшие свободные окна на 14 дней — нажатие на время открывает форму записи */
-export async function openNearestSlots() {
-  const from = today();
-  const to = addDays(from, 13);
-  const [{ schedule, exceptions }, appointments, breaks, settings] = await Promise.all([
-    data.getScheduleData(), data.getAppointmentsBetween(from, to), data.getBreaksBetween(from, to), data.getSettings(),
-  ]);
-  const days = getFreeSlotsRange({ from, to, schedule, exceptions, appointments, breaks, slotDuration: settings.slotDuration });
-  const content = el('div', { class: 'form' });
-  content.appendChild(el('div', { class: 'hint' }, `Свободное время на ближайшие 2 недели (окна по ${settings.slotDuration} мин). Нажмите на время, чтобы записать клиента.`));
-  if (!days.length) content.appendChild(emptyState({ title: 'Свободных окон нет', text: 'Все рабочие часы на 2 недели заняты.' }));
-  const sheetRef = {};
-  for (const d of days) {
-    content.appendChild(el('div', { class: 'slot-day' },
-      el('div', { class: 'slot-day-title' }, formatDayShort(d.date, true)),
-      el('div', { class: 'slot-times' }, d.slots.map((s) => el('button', {
-        class: 'slot-time', type: 'button',
-        onclick: () => { sheetRef.s.close(); openAppointmentForm({ date: d.date, start: s }); },
-      }, fromMinShort(s))))));
-  }
-  sheetRef.s = openSheet({ title: 'Свободные окна', content, full: true });
-}
 
 /** Редактор шаблона напоминания клиенту */
 export async function openReminderTemplate() {

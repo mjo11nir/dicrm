@@ -4,7 +4,8 @@ import * as data from '../db.js';
 import { el, html, esc, pressable, onSwipe } from '../components/ui.js';
 import { icons } from '../components/icons.js';
 import { openAppointmentForm } from '../components/appointment-form.js';
-import { openNearestSlots, openReminderTemplate, openMonthFinance } from '../components/quick-sheets.js';
+import { openReminderTemplate, openMonthFinance } from '../components/quick-sheets.js';
+import { openFreeSlots } from './free-slots.js';
 import { AppointmentScreen } from './appointment.js';
 import { AlertsScreen } from './alerts.js';
 import { HelpScreen } from './help.js';
@@ -32,8 +33,8 @@ export function HomeScreen(params, nav) {
     avatarEl,
     el('div', { class: 'home-id' }, el('div', { class: 'home-id-top' }, nameEl, dateEl), badgeEl),
     el('div', { class: 'home-head-icons' },
-      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Вид недели', html: icons.columns, onclick: () => nav.switchTab('schedule', { date: selected }) }),
-      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Календарь', html: icons.calendarAlt, onclick: () => nav.switchTab('schedule', { date: selected }) }),
+      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Вид недели', html: icons.columns, onclick: () => nav.switchTab('schedule', { date: selected, mode: 'week' }) }),
+      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Календарь', html: icons.calendarAlt, onclick: () => nav.switchTab('schedule', { date: selected, mode: 'day' }) }),
       el('button', { class: 'icon-btn bell', type: 'button', 'aria-label': 'Оповещения', html: icons.bellFill, onclick: () => nav.push(AlertsScreen) })));
 
   // ---- Полоса недели и записи дня ----
@@ -56,7 +57,7 @@ export function HomeScreen(params, nav) {
     el('span', { class: 'qa-ic', style: { background: bg, color }, html: icons[ic] }), el('span', { class: 'qa-label' }, label)));
   const quick = el('div', { class: 'card quick' },
     tile('calendarPlusFill', 'var(--pastel-yellow)', 'var(--orange)', 'Создать запись', () => openAppointmentForm({ date: selected >= today() ? selected : today() })),
-    tile('calendarSlot', 'var(--pastel-yellow)', 'var(--orange)', 'Свободные окна', () => openNearestSlots()),
+    tile('calendarSlot', 'var(--pastel-yellow)', 'var(--orange)', 'Свободные окна', () => openFreeSlots()),
     tile('chat', 'var(--pastel-green)', 'var(--green)', 'Уведомления', () => openReminderTemplate()),
     tile('help', 'var(--pastel-gray)', '#8A8A8E', 'Помощь', () => nav.push(HelpScreen)));
 
@@ -140,8 +141,11 @@ export function HomeScreen(params, nav) {
 }
 
 /** Простой логотип приложения: буква «B» и капля лака */
+let logoSeq = 0;
 export function logoSvg() {
-  return `<svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B57BF5"/><stop offset="1" stop-color="#9137E8"/></linearGradient></defs>
-    <path d="M24 6c6 8 12 14.5 12 22a12 12 0 0 1-24 0C12 20.5 18 14 24 6z" fill="url(#lg)"/>
+  // Уникальный id градиента: одинаковые id ломают отрисовку, если первый логотип в скрытой вкладке
+  const id = `logo-grad-${++logoSeq}`;
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B57BF5"/><stop offset="1" stop-color="#9137E8"/></linearGradient></defs>
+    <path d="M24 6c6 8 12 14.5 12 22a12 12 0 0 1-24 0C12 20.5 18 14 24 6z" fill="url(#${id})"/>
     <path d="M19 28c0 3.5 2.3 6 5.5 6.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none" opacity=".85"/></svg>`;
 }

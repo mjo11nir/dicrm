@@ -54,6 +54,15 @@ export async function openAppointmentForm(opts = {}) {
     st.start = st.date === today() ? Math.max(h.working ? h.start : 540, roundUp(nowMin(), 15)) : (h.working ? h.start : 540);
   }
 
+  /** Личная скидка клиента подставляется в новую запись, если скидку ещё не вводили */
+  function applyClientDiscount(c) {
+    if (editing || !c?.discount || st.discountValue) return;
+    st.discountType = 'percent';
+    st.discountValue = c.discount;
+    renderPrice();
+    toast(`Применена личная скидка ${c.discount}%`);
+  }
+
   function recalcFromServices() {
     if (!st.durationManual) st.duration = st.selected.reduce((s, x) => s + x.duration, 0) || 60;
     if (!st.priceManual) st.price = st.selected.reduce((s, x) => s + x.price, 0);
@@ -96,7 +105,7 @@ export async function openAppointmentForm(opts = {}) {
       const q = input.value.trim().toLowerCase();
       const qd = q.replace(/\D/g, '');
       const found = clients.filter((c) => !q || c.name.toLowerCase().includes(q) || (qd && String(c.phone).replace(/\D/g, '').includes(qd))).slice(0, q ? 8 : 5);
-      list.replaceChildren(...found.map((c) => el('button', { class: 'pick-row', type: 'button', onclick: () => { st.clientId = c.id; renderClient(); renderWarnings(); } },
+      list.replaceChildren(...found.map((c) => el('button', { class: 'pick-row', type: 'button', onclick: () => { st.clientId = c.id; applyClientDiscount(c); renderClient(); renderWarnings(); } },
         el('span', { class: 'pick-title' }, c.name), el('span', { class: 'pick-sub' }, c.phone || ''))));
       if (q && !found.length) list.appendChild(el('div', { class: 'pick-empty' }, 'Никого не нашли'));
     }
@@ -137,7 +146,7 @@ export async function openAppointmentForm(opts = {}) {
         el('span', { class: 'svc-meta' }, `${formatDuration(s.duration)} · ${moneyFull(s.price)}`)));
       }
     }
-    if (!services.length) servicesBox.appendChild(el('div', { class: 'pick-empty' }, 'Услуг пока нет — добавьте их в «Другое → Услуги и товары».'));
+    if (!services.length) servicesBox.appendChild(el('div', { class: 'pick-empty' }, 'Услуг пока нет — добавьте их в «Другое → Профиль и настройки → Услуги и товары».'));
     summary.textContent = st.selected.length ? `Выбрано: ${st.selected.length} · ${formatDuration(st.selected.reduce((s, x) => s + x.duration, 0))} · ${moneyFull(st.selected.reduce((s, x) => s + x.price, 0))}` : '';
     servicesBox.appendChild(summary);
   }
@@ -254,6 +263,8 @@ export async function openAppointmentForm(opts = {}) {
   renderTime();
   renderPrice();
   renderWarnings();
+  // Клиент передан заранее (например, из карточки клиента) — сразу применяем его скидку
+  if (st.clientId) applyClientDiscount(clients.find((c) => c.id === st.clientId));
 
   // ---- Сохранение ----
   let sheet = null;

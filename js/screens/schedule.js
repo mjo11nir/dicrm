@@ -1,8 +1,10 @@
-// Вкладка «Расписание», режим «День» (docs/screenshots/02-schedule-month.jpg).
-// Режимы «Неделя» и «Лента» — этап 2.
+// Вкладка «Расписание» (docs/screenshots/02-schedule-month.jpg).
+// Режимы: «День» (здесь), «Неделя» (schedule-week.js), «Лента» (schedule-feed.js).
 
 import * as data from '../db.js';
-import { el, segmented, toast, pressable, onSwipe, avatar } from '../components/ui.js';
+import { el, segmented, pressable, onSwipe, avatar } from '../components/ui.js';
+import { createWeekView } from './schedule-week.js';
+import { createFeedView } from './schedule-feed.js';
 import { icon } from '../components/icons.js';
 import { openAppointmentForm } from '../components/appointment-form.js';
 import { openSlotChoice, openBreakForm, openDayHours, openSearch } from '../components/day-forms.js';
@@ -22,21 +24,25 @@ export function ScheduleScreen(params, nav) {
   let selected = params.date || today();
   let viewMonth = startOfMonth(selected);
   let collapsed = false;
+  let mode = params.mode || 'day';
 
   const root = el('div', { class: 'page schedule' });
 
   // ---- Верх: переключатель режимов ----
   const seg = segmented({
     options: [{ value: 'day', label: 'День' }, { value: 'week', label: 'Неделя' }, { value: 'feed', label: 'Лента' }],
-    value: 'day',
-    onChange: (v) => {
-      if (v !== 'day') {
-        toast(v === 'week' ? 'Режим «Неделя» появится в следующем обновлении (этап 2)' : 'Режим «Лента» появится в следующем обновлении (этап 2)');
-        return false;
-      }
-      return true;
-    },
+    value: mode,
+    onChange: (v) => { mode = v; refresh(); root.closest('.screen')?.scrollTo(0, 0); },
   });
+  const top = el('div', { class: 'sched-top' }, el('div', { class: 'seg-wrap' }, seg));
+
+  // Неделя и Лента. Нажатие на день в неделе открывает этот день в режиме «День».
+  const weekView = createWeekView(
+    { ...nav, openDay: (d) => { selected = d; viewMonth = startOfMonth(d); mode = 'day'; seg.setValue('day'); refresh(); } },
+    () => selected,
+    (d) => { selected = d; viewMonth = startOfMonth(d); },
+  );
+  const feedView = createFeedView(nav);
 
   // ---- Месячный календарь ----
   const monthBtn = el('button', { class: 'month-title', type: 'button', onclick: () => { collapsed = !collapsed; refresh(); } });
@@ -45,7 +51,6 @@ export function ScheduleScreen(params, nav) {
   const infoLeft = el('div', { class: 'day-info-date' });
   const infoRight = el('button', { class: 'day-info-hours', type: 'button', onclick: () => openDayHours(selected) });
   const calendar = el('div', { class: 'cal-block' },
-    el('div', { class: 'seg-wrap' }, seg),
     monthBtn, letters, grid,
     el('div', { class: 'day-info' }, infoLeft, infoRight));
   onSwipe(grid, (dir) => {
@@ -63,14 +68,36 @@ export function ScheduleScreen(params, nav) {
 
   // ---- Нижняя панель ----
   const revenueVal = el('div', { class: 'sb-value' });
+  const revenueLabel = el('div', { class: 'sb-label' }, 'Выручка за день');
   const bottom = el('div', { class: 'schedule-bottom' },
     el('button', { class: 'icon-btn primary', type: 'button', 'aria-label': 'Поиск', html: icon('search'), onclick: () => openSearch((id) => nav.push(AppointmentScreen, { id })) }),
-    el('div', { class: 'sb-center' }, el('div', { class: 'sb-label' }, 'Выручка за день'), revenueVal),
+    el('div', { class: 'sb-center' }, revenueLabel, revenueVal),
     el('button', { class: 'link-btn', type: 'button', onclick: () => { selected = today(); viewMonth = startOfMonth(selected); refresh(); } }, 'Сегодня'));
 
-  root.append(calendar, feed, bottom);
+  root.append(top, calendar, feed, weekView.el, feedView.el, bottom);
 
+  /** Перерисовать текущий режим */
   async function refresh() {
+    calendar.hidden = mode !== 'day';
+    feed.hidden = mode !== 'day';
+    weekView.el.hidden = mode !== 'week';
+    feedView.el.hidden = mode !== 'feed';
+    root.dataset.mode = mode;
+    if (mode === 'week') {
+      const r = await weekView.refresh();
+      revenueLabel.textContent = 'Выручка за неделю';
+      revenueVal.textContent = moneyFull(r.revenue);
+    } else if (mode === 'feed') {
+      const n = await feedView.refresh();
+      revenueLabel.textContent = 'Будущих записей';
+      revenueVal.textContent = String(n);
+    } else {
+      revenueLabel.textContent = 'Выручка за день';
+      await refreshDay();
+    }
+  }
+
+  async function refreshDay() {
     const t = today();
     // Диапазон сетки: от понедельника первой недели месяца до воскресенья последней
     const gridFrom = collapsed ? startOfWeek(selected) : startOfWeek(viewMonth);
@@ -161,12 +188,17 @@ export function ScheduleScreen(params, nav) {
       avatar(client, { size: 46, bell: !!a.reminderSentAt })));
   }
 
+  /** Снаружи (с Главной) можно открыть нужный день и режим */
   function setParams(p) {
     if (p?.date) {
       selected = p.date;
       viewMonth = startOfMonth(selected);
-      refresh();
     }
+    if (p?.mode) {
+      mode = p.mode;
+      seg.setValue(mode);
+    }
+    refresh();
   }
 
   refresh();

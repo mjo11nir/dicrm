@@ -5,6 +5,7 @@
 :root {
   --primary: #9137E8;
   --primary-soft: #EBDDFB;
+  --primary-soft: color-mix(in srgb, var(--primary) 16%, #fff);
   --bg: #F2F1F7;
   --surface: #FFFFFF;
   --text: #111111;
@@ -37,6 +38,8 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* Атрибут hidden всегда скрывает элемент, даже если у класса задан display */
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -731,9 +734,11 @@ select.input {
 /* ---------- Расписание ---------- */
 
 .schedule { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 0; background: #fff; }
+.sched-top { background: var(--bg); padding-top: calc(10px + var(--safe-top)); }
+.schedule:not([data-mode="day"]) .sched-top { border-bottom: .5px solid rgba(0, 0, 0, .12); }
 .cal-block {
   background: var(--bg);
-  padding: calc(10px + var(--safe-top)) 0 0;
+  padding: 0;
   border-bottom: .5px solid rgba(0, 0, 0, .15);
   box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
 }
@@ -908,3 +913,177 @@ select.input {
   #app { max-width: 480px; margin: 0 auto; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .1), 0 10px 40px rgba(0, 0, 0, .08); }
   .toast { bottom: 90px; }
 }
+
+/* ==========================================================================
+   Этап 2
+   ========================================================================== */
+
+.chip.active-primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+.feed-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+.feed-chips::-webkit-scrollbar { display: none; }
+.feed-chips .chip { flex: none; }
+.list-count { font-size: 13px; color: var(--text-secondary); padding: 0 4px 4px; }
+.seg-bar { padding: 10px var(--pad) 0; }
+.section-title { font-size: 28px; font-weight: 700; margin: 6px 0 14px; padding: 0 4px; }
+
+/* ---------- Расписание: Неделя ---------- */
+
+.week-view { flex: 1; background: #fff; padding-bottom: 8px; }
+.wv-nav { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 0; }
+.wv-title { font-weight: 600; font-size: 17px; color: var(--primary); }
+.wv-days, .wv-grid { display: grid; grid-template-columns: 40px repeat(7, 1fr); }
+.wv-days { position: sticky; top: 0; z-index: 3; background: #fff; border-bottom: .5px solid var(--separator); padding: 4px 0 6px; }
+.wv-day { display: flex; flex-direction: column; align-items: center; gap: 1px; min-height: 52px; }
+.wv-letter { font-size: 12px; color: var(--text-secondary); }
+.wv-num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; font-weight: 500; }
+.wv-day.off .wv-letter, .wv-day.off .wv-num { color: var(--red); }
+.wv-day.today .wv-num { background: var(--teal); color: #fff; }
+.wv-rev { font-size: 10px; color: var(--text-secondary); }
+.wv-grid { padding-top: 8px; touch-action: pan-y; }
+.wv-axis { position: relative; }
+.wv-hour { position: absolute; right: 4px; transform: translateY(-50%); font-size: 10px; color: var(--text-secondary); }
+.wv-col { position: relative; background: #ECECF0; border-left: .5px solid var(--separator); cursor: pointer; }
+.wv-col.today { background: #E3EFF2; }
+.wv-work { position: absolute; left: 0; right: 0; background: #fff; }
+.wv-col.today .wv-work { background: #F5FBFC; }
+.wv-break { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, #F2F2F5 0 4px, #E6E6EA 4px 8px); }
+.wv-line { position: absolute; left: 0; right: 0; border-top: .5px solid #E2E2E6; pointer-events: none; }
+.wv-block {
+  position: absolute;
+  left: 2px; right: 2px;
+  border-radius: 5px;
+  border-left: 3px solid;
+  padding: 2px 3px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font-size: 10px;
+  line-height: 1.2;
+  z-index: 1;
+}
+.wv-block.cancelled { opacity: .6; text-decoration: line-through; }
+.wv-b-time { font-weight: 600; }
+.wv-b-name { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Расписание: Лента ---------- */
+
+.feed-view { flex: 1; background: #fff; padding: 12px var(--pad); display: flex; flex-direction: column; }
+.feed-list { display: flex; flex-direction: column; gap: 10px; }
+.feed-date { font-weight: 700; font-size: 17px; margin-top: 8px; }
+
+/* ---------- Модальный экран ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform .34s cubic-bezier(.2, .8, .2, 1);
+  max-width: 640px;
+  margin: 0 auto;
+}
+.modal.show { transform: none; }
+.modal-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: calc(24px + var(--safe-bottom)); }
+
+/* ---------- Свободные окна ---------- */
+
+.fs-seg { padding: 8px var(--pad); background: var(--bg); border-bottom: .5px solid rgba(0, 0, 0, .1); }
+.fs-hint { font-size: 13px; color: var(--text-secondary); padding: 12px var(--pad) 18px; line-height: 1.35; }
+.fs .group-wrap { margin: 0 0 14px; }
+.fs .group { border-radius: 0; }
+.fs > div > .group-wrap, .fs .fs-find-list { padding: 0; }
+.fs-section { font-size: 13px; text-transform: uppercase; color: var(--text-secondary); padding: 14px var(--pad) 8px; border-bottom: .5px solid rgba(0, 0, 0, .1); }
+.fs-preview-wrap { background: #fff; padding: 20px var(--pad); }
+.fs-send-wrap { background: #fff; padding: 0 var(--pad) 20px; }
+.fs-send { font-weight: 500; font-size: 19px; min-height: 56px; }
+.fs-find-list { display: flex; flex-direction: column; gap: 10px; padding: 0 var(--pad) !important; }
+.fs-text-preview { white-space: pre-wrap; font-size: 15px; line-height: 1.45; background: var(--bg); border-radius: 12px; padding: 14px; }
+.theme-swatch { width: 36px; height: 36px; border-radius: 9px; display: inline-block; flex: none; }
+.theme-swatch.big { width: 56px; height: 56px; border-radius: 14px; }
+.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 8px 0 12px; }
+.theme-opt { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; border-radius: 14px; font-size: 14px; background: var(--surface); border: 2px solid transparent; }
+.theme-opt.active { border-color: var(--primary); }
+
+/* Карточка, которая превращается в картинку */
+.fs-card { background: #fff; box-shadow: 0 2px 14px rgba(0, 0, 0, .12); overflow: hidden; color: #111; }
+.fs-card-head { position: relative; display: flex; align-items: center; gap: 14px; padding: 16px 14px; color: #fff; overflow: hidden; min-height: 76px; }
+.fs-card-logo {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(255, 255, 255, .7);
+  display: grid; place-items: center;
+  flex: none;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+.fs-card-logo svg { width: 28px; height: 28px; }
+.fs-card-logo img { width: 100%; height: 100%; object-fit: cover; }
+.fs-card-id { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.fs-card-name { font-weight: 700; font-size: 15px; }
+.fs-card-line { font-size: 12px; }
+.fs-card-line.dim { opacity: .75; }
+.fs-card-cta { position: relative; z-index: 1; font-size: 13px; opacity: .7; align-self: center; white-space: nowrap; }
+.fs-card-mark { position: absolute; right: -14px; top: -10px; width: 110px; height: 110px; opacity: .14; }
+.fs-card-mark svg { width: 100%; height: 100%; filter: brightness(10); }
+.fs-card-body { padding: 14px 14px 6px; }
+.fs-card-title { font-weight: 700; color: #3A3A3C; font-size: 15px; margin-bottom: 4px; }
+.fs-card-row { display: flex; align-items: baseline; gap: 10px; padding: 10px 0; border-bottom: 1px dashed #D1D1D6; }
+.fs-card-row:last-child { border-bottom: 0; }
+.fs-card-day { font-weight: 700; color: #3A3A3C; font-size: 14px; width: 92px; flex: none; }
+.fs-card-times { display: flex; flex-wrap: wrap; gap: 4px 12px; color: #48484A; font-size: 13px; }
+.fs-card-empty { color: var(--text-secondary); padding: 12px 0; font-size: 14px; }
+@media (min-width: 380px) {
+  .fs-card-logo { width: 64px; height: 64px; }
+  .fs-card-logo svg { width: 38px; height: 38px; }
+}
+
+/* ---------- Профиль ---------- */
+
+.profile-card { display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 16px; }
+.profile-ava {
+  position: relative;
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
+  display: grid; place-items: center;
+  flex: none;
+}
+.profile-ava img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.profile-ava .home-logo svg { width: 42px; height: 42px; }
+.profile-ava-cam {
+  position: absolute;
+  right: -4px; bottom: -4px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  border: 2px solid #fff;
+  display: grid; place-items: center;
+}
+.profile-ava-cam svg { width: 13px; height: 13px; }
+.profile-info { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.profile-name { font-size: 20px; font-weight: 700; }
+.profile-line { font-size: 14px; color: var(--text-secondary); }
+.accent-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.accent-sw { width: 40px; height: 40px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--separator); }
+.accent-sw.active { box-shadow: 0 0 0 2px var(--text); }
+
+/* ---------- Клиент ---------- */
+
+.client-photo { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.client-photo-edit { font-size: 13px; color: var(--primary); }
+.contact-row.four { grid-template-columns: repeat(4, 1fr); }
+.client-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.client-stat { padding: 12px 8px; text-align: center; }
+.client-stat-v { font-size: 19px; font-weight: 700; }
+.client-stat-l { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.tag-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 8px; }
+.tag { background: var(--primary-soft); color: var(--primary); font-size: 13px; font-weight: 500; border-radius: 999px; padding: 3px 10px; }

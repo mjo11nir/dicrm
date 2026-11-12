@@ -68,7 +68,7 @@ export async function openDayHours(date) {
 
   const content = el('div', { class: 'form' },
     groupedList([{ title: 'Рабочий день', control: toggle(working, (v) => { working = v; timeRow.hidden = !v; }) }],
-      { footer: 'Изменения касаются только этого дня. Общий график меняется в «Другое → График и место работы».' }),
+      { footer: 'Изменения касаются только этого дня. Общий график меняется в «Другое → Профиль и настройки → График и место работы».' }),
     el('div', { class: 'form-section' }, timeRow));
   if (hours.exception) {
     content.appendChild(el('button', { class: 'btn btn-outline', type: 'button', onclick: async () => {

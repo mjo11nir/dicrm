@@ -165,6 +165,17 @@
       eq(times(getFreeSlots({ date: MON, hours, now: before, slotDuration: 60 })), ['09:00', '10:00', '11:00']);
     });
 
+    test('Шаг меньше длительности: услуга 90 мин с шагом 30 мин', () => {
+      const hours = getDayHours(MON, schedule, [{ kind: 'hours', dateFrom: MON, dateTo: MON, start: '09:00', end: '12:00' }]);
+      eq(times(getFreeSlots({ date: MON, hours, now: before, slotDuration: 90, step: 30 })), ['09:00', '09:30', '10:00', '10:30']);
+    });
+
+    test('Слот длиннее свободного промежутка не предлагается', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const appts = [{ id: 'a', date: MON, start: 600, duration: 540, status: 'scheduled' }]; // 10:00–19:00
+      eq(getFreeSlots({ date: MON, hours, appointments: appts, now: before, slotDuration: 90, step: 30 }), []);
+    });
+
     test('Проверка пересечений: свободное время — без конфликтов', () => {
       const hours = getDayHours(MON, schedule, []);
       const r = findConflicts({ date: MON, start: 660, duration: 60 }, { hours, appointments: [{ id: 'a', date: MON, start: 540, duration: 120, status: 'scheduled' }] });
