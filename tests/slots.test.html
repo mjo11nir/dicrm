@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тесты: свободные окна</title>
+  <style>
+    body { font: 15px -apple-system, system-ui, sans-serif; margin: 16px; background: #F2F1F7; color: #111; }
+    h1 { font-size: 22px; }
+    .t { background: #fff; border-radius: 10px; padding: 10px 12px; margin: 6px 0; }
+    .fail { color: #E5484D; }
+    pre { margin: 6px 0 0; font-size: 12px; white-space: pre-wrap; color: #8A8A8E; }
+    #summary { font-weight: 700; font-size: 17px; }
+  </style>
+</head>
+<body>
+  <h1>Тесты <code>js/utils/slots.js</code></h1>
+  <div id="summary">Выполняется…</div>
+  <div id="out"></div>
+
+  <script type="module">
+    import { getDayHours, getFreeIntervals, getFreeSlots, getFreeSlotsRange, findConflicts } from '../js/utils/slots.js';
+    import { fromMin } from '../js/utils/dates.js';
+
+    const out = document.getElementById('out');
+    let passed = 0, failed = 0;
+
+    function test(name, fn) {
+      const row = document.createElement('div');
+      row.className = 't';
+      try {
+        fn();
+        passed++;
+        row.textContent = '✅ ' + name;
+      } catch (e) {
+        failed++;
+        row.className += ' fail';
+        row.innerHTML = '❌ ' + name + '<pre></pre>';
+        row.querySelector('pre').textContent = e.message;
+      }
+      out.appendChild(row);
+    }
+
+    function eq(actual, expected) {
+      const a = JSON.stringify(actual), b = JSON.stringify(expected);
+      if (a !== b) throw new Error(`ожидалось ${b}\nполучено  ${a}`);
+    }
+
+    const times = (arr) => arr.map(fromMin);
+    const intervals = (arr) => arr.map((i) => `${fromMin(i.start)}-${fromMin(i.end)}`);
+
+    // График: пн–чт 09:00–19:00, пт–вс выходные. В среду перерыв 13:00–14:00.
+    const schedule = [
+      { weekday: 0, isWorking: true, start: '09:00', end: '19:00', breaks: [] },
+      { weekday: 1, isWorking: true, start: '09:00', end: '19:00', breaks: [] },
+      { weekday: 2, isWorking: true, start: '09:00', end: '19:00', breaks: [{ start: '13:00', end: '14:00' }] },
+      { weekday: 3, isWorking: true, start: '09:00', end: '19:00', breaks: [] },
+      { weekday: 4, isWorking: false, start: '09:00', end: '19:00', breaks: [] },
+      { weekday: 5, isWorking: false, start: '09:00', end: '19:00', breaks: [] },
+      { weekday: 6, isWorking: false, start: '09:00', end: '19:00', breaks: [] },
+    ];
+    // 2026-11-16 — понедельник. «Сейчас» — воскресенье 15 ноября, чтобы вся неделя была в будущем.
+    const MON = '2026-11-16', TUE = '2026-11-17', WED = '2026-11-18', FRI = '2026-11-20';
+    const before = new Date(2026, 10, 15, 12, 0);
+
+    test('Рабочий день по графику: 09:00–19:00', () => {
+      const h = getDayHours(MON, schedule, []);
+      eq([h.working, fromMin(h.start), fromMin(h.end)], [true, '09:00', '19:00']);
+    });
+
+    test('Выходной по графику (пятница)', () => {
+      eq(getDayHours(FRI, schedule, []).working, false);
+    });
+
+    test('Отпуск (исключение «off» на период) делает день нерабочим', () => {
+      const ex = [{ kind: 'off', dateFrom: MON, dateTo: TUE }];
+      eq([getDayHours(MON, schedule, ex).working, getDayHours(TUE, schedule, ex).working, getDayHours(WED, schedule, ex).working], [false, false, true]);
+    });
+
+    test('Исключение «hours» меняет часы одного дня, даже выходного', () => {
+      const ex = [{ kind: 'hours', dateFrom: FRI, dateTo: FRI, start: '10:00', end: '14:00' }];
+      const h = getDayHours(FRI, schedule, ex);
+      eq([h.working, fromMin(h.start), fromMin(h.end)], [true, '10:00', '14:00']);
+    });
+
+    test('Удалённое исключение не учитывается', () => {
+      const ex = [{ kind: 'off', dateFrom: MON, dateTo: MON, deleted: true }];
+      eq(getDayHours(MON, schedule, ex).working, true);
+    });
+
+    test('Пустой день режется на слоты по 2 часа: 9, 11, 13, 15, 17', () => {
+      const hours = getDayHours(MON, schedule, []);
+      eq(times(getFreeSlots({ date: MON, hours, now: before })), ['09:00', '11:00', '13:00', '15:00', '17:00']);
+    });
+
+    test('Записи вычитаются из свободного времени', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const appts = [{ id: 'a', date: MON, start: 540, duration: 120, status: 'scheduled' }];
+      eq(intervals(getFreeIntervals({ date: MON, hours, appointments: appts, now: before })), ['11:00-19:00']);
+      eq(times(getFreeSlots({ date: MON, hours, appointments: appts, now: before })), ['11:00', '13:00', '15:00', '17:00']);
+    });
+
+    test('Отменённые и удалённые записи время не занимают', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const appts = [
+        { id: 'a', date: MON, start: 540, duration: 120, status: 'cancelled' },
+        { id: 'b', date: MON, start: 660, duration: 120, status: 'scheduled', deleted: true },
+      ];
+      eq(intervals(getFreeIntervals({ date: MON, hours, appointments: appts, now: before })), ['09:00-19:00']);
+    });
+
+    test('Перерыв после услуги тоже занимает время', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const appts = [{ id: 'a', date: MON, start: 540, duration: 90, breakAfter: 15, status: 'scheduled' }];
+      eq(intervals(getFreeIntervals({ date: MON, hours, appointments: appts, now: before })), ['10:45-19:00']);
+    });
+
+    test('Перерыв из графика и разовый перерыв вычитаются', () => {
+      const hours = getDayHours(WED, schedule, []);
+      const brk = [{ id: 'b', date: WED, start: 1020, end: 1080 }]; // 17:00–18:00
+      eq(intervals(getFreeIntervals({ date: WED, hours, breaks: brk, now: before })), ['09:00-13:00', '14:00-17:00', '18:00-19:00']);
+      eq(times(getFreeSlots({ date: WED, hours, breaks: brk, now: before })), ['09:00', '11:00', '14:00']);
+    });
+
+    test('Пересекающиеся записи объединяются', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const appts = [
+        { id: 'a', date: MON, start: 540, duration: 120, status: 'scheduled' },
+        { id: 'b', date: MON, start: 600, duration: 120, status: 'confirmed' },
+      ];
+      eq(intervals(getFreeIntervals({ date: MON, hours, appointments: appts, now: before })), ['12:00-19:00']);
+    });
+
+    test('Сегодня: прошедшее время не показывается (18:13 → 18:15)', () => {
+      const now = new Date(2026, 10, 16, 18, 13);
+      const hours = getDayHours(MON, schedule, []);
+      const appts = [{ id: 'a', date: MON, start: 540, duration: 120, status: 'scheduled' }];
+      eq(intervals(getFreeIntervals({ date: MON, hours, appointments: appts, now })), ['18:15-19:00']);
+      eq(getFreeSlots({ date: MON, hours, appointments: appts, now }), []);
+    });
+
+    test('Прошедший день не даёт свободных окон', () => {
+      const now = new Date(2026, 10, 17, 8, 0);
+      const hours = getDayHours(MON, schedule, []);
+      eq(getFreeIntervals({ date: MON, hours, now }), []);
+    });
+
+    test('Промежутки короче 15 минут не показываются', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const appts = [
+        { id: 'a', date: MON, start: 540, duration: 120, status: 'scheduled' },
+        { id: 'b', date: MON, start: 670, duration: 530, status: 'scheduled' }, // 11:10–20:00
+      ];
+      eq(getFreeIntervals({ date: MON, hours, appointments: appts, now: before }), []);
+    });
+
+    test('Свободные окна за период: выходные и дни без окон пропускаются', () => {
+      const appts = [{ id: 'a', date: TUE, start: 540, duration: 600, status: 'scheduled' }];
+      const r = getFreeSlotsRange({ from: MON, to: '2026-11-22', schedule, appointments: appts, now: before });
+      eq(r.map((d) => d.date), [MON, WED, '2026-11-19']);
+    });
+
+    test('Нестандартная длительность слота (60 мин)', () => {
+      const hours = getDayHours(MON, schedule, [{ kind: 'hours', dateFrom: MON, dateTo: MON, start: '09:00', end: '12:00' }]);
+      eq(times(getFreeSlots({ date: MON, hours, now: before, slotDuration: 60 })), ['09:00', '10:00', '11:00']);
+    });
+
+    test('Шаг меньше длительности: услуга 90 мин с шагом 30 мин', () => {
+      const hours = getDayHours(MON, schedule, [{ kind: 'hours', dateFrom: MON, dateTo: MON, start: '09:00', end: '12:00' }]);
+      eq(times(getFreeSlots({ date: MON, hours, now: before, slotDuration: 90, step: 30 })), ['09:00', '09:30', '10:00', '10:30']);
+    });
+
+    test('Слот длиннее свободного промежутка не предлагается', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const appts = [{ id: 'a', date: MON, start: 600, duration: 540, status: 'scheduled' }]; // 10:00–19:00
+      eq(getFreeSlots({ date: MON, hours, appointments: appts, now: before, slotDuration: 90, step: 30 }), []);
+    });
+
+    test('Проверка пересечений: свободное время — без конфликтов', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const r = findConflicts({ date: MON, start: 660, duration: 60 }, { hours, appointments: [{ id: 'a', date: MON, start: 540, duration: 120, status: 'scheduled' }] });
+      eq(r.ok, true);
+    });
+
+    test('Проверка пересечений: наложение на запись', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const r = findConflicts({ date: MON, start: 600, duration: 60 }, { hours, appointments: [{ id: 'a', date: MON, start: 540, duration: 120, status: 'scheduled' }] });
+      eq([r.ok, r.overlaps.length], [false, 1]);
+    });
+
+    test('Проверка пересечений: сама запись при редактировании не конфликтует', () => {
+      const hours = getDayHours(MON, schedule, []);
+      const r = findConflicts({ date: MON, start: 600, duration: 60, excludeId: 'a' }, { hours, appointments: [{ id: 'a', date: MON, start: 540, duration: 120, status: 'scheduled' }] });
+      eq(r.ok, true);
+    });
+
+    test('Проверка пересечений: вне графика и выходной', () => {
+      const hours = getDayHours(MON, schedule, []);
+      eq(findConflicts({ date: MON, start: 1080, duration: 120 }, { hours }).outsideHours, true);
+      eq(findConflicts({ date: FRI, start: 600, duration: 60 }, { hours: getDayHours(FRI, schedule, []) }).dayOff, true);
+    });
+
+    test('Проверка пересечений: перерыв из графика', () => {
+      const hours = getDayHours(WED, schedule, []);
+      eq(findConflicts({ date: WED, start: 750, duration: 60 }, { hours }).breakOverlap, true);
+    });
+
+    const s = document.getElementById('summary');
+    s.textContent = failed ? `❌ Провалено: ${failed}, пройдено: ${passed}` : `✅ Все тесты пройдены: ${passed}`;
+    s.className = failed ? 'fail' : '';
+    document.title = failed ? 'FAIL' : 'PASS';
+  </script>
+</body>
+</html>
