@@ -37,13 +37,26 @@ export async function resizeImage(file, { max = 1600, square = false, quality = 
   return canvas.toDataURL('image/jpeg', quality);
 }
 
+/** Уменьшить изображение и вернуть Blob (JPEG) — для хранения фото в IndexedDB */
+export async function resizeToBlob(file, { max = 1600, quality = 0.85 } = {}) {
+  const url = await resizeImage(file, { max, quality });
+  const res = await fetch(url);
+  return res.blob();
+}
+
 /** Открыть системный выбор фото. Возвращает File или null. */
 export function pickImageFile() {
+  return pickImageFiles(false).then((files) => files[0] || null);
+}
+
+/** Выбор одного или нескольких фото. Возвращает массив File. */
+export function pickImageFiles(multiple = true) {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.addEventListener('change', () => resolve(input.files?.[0] || null));
+    input.multiple = multiple;
+    input.addEventListener('change', () => resolve([...(input.files || [])]));
     input.click();
   });
 }

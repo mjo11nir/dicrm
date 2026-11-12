@@ -9,6 +9,8 @@ import { today, addDays, fromMin, formatDayShort, nowMin, diffDays } from '../ut
 import { servicesTitle } from '../utils/appt.js';
 import { isBlocking } from '../utils/slots.js';
 import { clientStats, isDueAgain } from '../utils/clients.js';
+import { matchWaitlist, isWaiting } from '../utils/waitlist.js';
+import { WaitlistScreen, loadWaitlistContext } from './waitlist.js';
 
 export function AlertsScreen(params, nav) {
   const root = el('div', { class: 'page' });
@@ -48,13 +50,28 @@ export function AlertsScreen(params, nav) {
       .filter(({ st }) => isDueAgain(st, services))
       .sort((a, b) => a.st.lastVisit.localeCompare(b.st.lastVisit));
 
+    // Лист ожидания: у кого появилось подходящее окно
+    const settings = await data.getSettings();
+    let wlMatches = [];
+    if (settings.waitlistEnabled !== false) {
+      const ctx = await loadWaitlistContext();
+      wlMatches = ctx.entries.filter(isWaiting).map((e) => ({ e, m: matchWaitlist(e, ctx) })).filter((x) => x.m.length);
+    }
+
     body.replaceChildren();
-    if (!todayLeft.length && !tmr.length && !birthdays.length && !due.length) {
+    if (!todayLeft.length && !tmr.length && !birthdays.length && !due.length && !wlMatches.length) {
       body.appendChild(emptyState({ title: 'Нет оповещений', text: 'Здесь появятся записи на завтра, дни рождения и клиенты, которым пора записаться снова.' }));
       return;
     }
     const notSent = tmr.filter((a) => !a.reminderSentAt).length;
     if (notSent) body.appendChild(el('div', { class: 'alert-banner' }, `Не отправлено напоминаний на завтра: ${notSent}`));
+    if (wlMatches.length) {
+      body.appendChild(groupedList(wlMatches.map(({ e, m }) => ({
+        title: clientsMap.get(e.clientId)?.name || 'Клиент',
+        subtitle: `есть окно ${formatDayShort(m[0].date)}`,
+        onClick: () => nav.push(WaitlistScreen),
+      })), { header: 'Лист ожидания: появились окна' }));
+    }
     if (todayLeft.length) body.appendChild(groupedList(todayLeft.map(apptRow), { header: `Сегодня, ${formatDayShort(t)}` }));
     if (tmr.length) body.appendChild(groupedList(tmr.map(apptRow), { header: `Завтра, ${formatDayShort(tomorrow)}` }));
     if (birthdays.length) {

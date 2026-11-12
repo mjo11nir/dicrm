@@ -11,8 +11,10 @@ import { money, moneyFull } from '../utils/money.js';
 import { STATUSES, servicesTitle, phoneDigits } from '../utils/appt.js';
 import { clientStats } from '../utils/clients.js';
 import { resizeImage, pickImageFile } from '../utils/image.js';
+import { photoGrid, createUrlPool, uploadPhotos } from './gallery.js';
 
 export function ClientScreen({ id }, nav) {
+  const pool = createUrlPool();
   const root = el('div', { class: 'page' });
   const body = el('div', { class: 'page-body' });
   root.append(navBar({
@@ -28,6 +30,8 @@ export function ClientScreen({ id }, nav) {
       return;
     }
     const all = (await data.getAll('appointments')).filter((a) => a.clientId === id);
+    const photos = (await data.getAll('gallery')).filter((p) => p.clientId === id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    pool.clear();
     const st = clientStats(id, all);
     const d = phoneDigits(c.phone);
 
@@ -74,6 +78,9 @@ export function ClientScreen({ id }, nav) {
       stats,
       groupedList(info),
       c.notes ? groupedList([{ title: c.notes }], { header: 'Заметки' }) : null,
+      el('div', { class: 'group-header-row' }, el('span', {}, `Фото работ (${photos.length})`),
+        el('button', { class: 'link-btn small', type: 'button', onclick: () => uploadPhotos({ clientId: id }) }, '+ Добавить')),
+      photos.length ? el('div', { class: 'client-photos' }, photoGrid(photos.slice(0, 9), pool)) : null,
       visits.length ? groupedList(visits, { header: `Все визиты (${st.appts.length})` }) : groupedList([{ title: 'Записей пока нет' }], { header: 'Визиты' }),
       el('button', { class: 'btn btn-danger-outline', type: 'button', onclick: () => removeClient(c, st) }, 'Удалить клиента'),
     ].filter(Boolean));
@@ -108,7 +115,7 @@ export function ClientScreen({ id }, nav) {
   }
 
   refresh();
-  return { el: root, refresh };
+  return { el: root, refresh, destroy: () => pool.clear() };
 }
 
 /** Форма создания/редактирования клиента */

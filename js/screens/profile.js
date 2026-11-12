@@ -5,11 +5,12 @@
 import * as data from '../db.js';
 import { el, navBar, groupedList, openSheet, field, toast, toggle, actionSheet } from '../components/ui.js';
 import { icon } from '../components/icons.js';
-import { openReminderTemplate } from '../components/quick-sheets.js';
+import { TemplatesScreen } from './templates.js';
 import { ScheduleSettingsScreen } from './schedule-settings.js';
 import { ServicesScreen } from './services.js';
 import { ClientsDataScreen } from './clients-data.js';
 import { AlertsScreen } from './alerts.js';
+import { WaitlistScreen } from './waitlist.js';
 import { logoSvg } from './home.js';
 import { resizeImage, pickImageFile } from '../utils/image.js';
 
@@ -63,6 +64,7 @@ export function ProfileScreen(params, nav) {
       groupedList([
         { icon: 'scheduleSettings', iconBg: ORANGE, title: 'График и место работы', onClick: () => nav.push(ScheduleSettingsScreen) },
         { icon: 'clipboardPen', iconBg: ORANGE, title: 'Онлайн-запись', badge: 'Скоро', onClick: () => soon('Онлайн-запись для клиентов') },
+        { icon: 'waitlist', iconBg: ORANGE, title: 'Лист ожидания', value: settings.waitlistEnabled === false ? 'Выкл' : 'Вкл', onClick: () => nav.push(WaitlistScreen) },
       ]),
       groupedList([
         { icon: 'bellService', iconBg: VIOLET, title: 'Услуги и товары', onClick: () => nav.push(ServicesScreen) },
@@ -71,7 +73,7 @@ export function ProfileScreen(params, nav) {
         { icon: 'usersStroke', iconBg: PINK, title: 'Клиенты', onClick: () => nav.push(ClientsDataScreen) },
       ]),
       groupedList([
-        { icon: 'messageCircle', iconBg: GREEN, title: 'Уведомления для клиентов', onClick: () => openReminderTemplate() },
+        { icon: 'messageCircle', iconBg: GREEN, title: 'Уведомления для клиентов', onClick: () => nav.push(TemplatesScreen) },
         { icon: 'bell', iconBg: GREEN, title: 'Оповещения', onClick: () => nav.push(AlertsScreen) },
       ]),
       groupedList([

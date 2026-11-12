@@ -1087,3 +1087,98 @@ select.input {
 .client-stat-l { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 .tag-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 8px; }
 .tag { background: var(--primary-soft); color: var(--primary); font-size: 13px; font-weight: 500; border-radius: 999px; padding: 3px 10px; }
+
+/* ==========================================================================
+   Этап 3
+   ========================================================================== */
+
+.hint.pad { padding: 4px 4px 14px; }
+.btn-row .btn.small { width: 100%; display: block; }
+
+/* ---------- Чаты ---------- */
+
+.chat-search { padding: 0 var(--pad); }
+.chat-list .chat-row { width: calc(100% - 32px); text-align: left; align-items: center; }
+.chat-page { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 0; }
+.chat-history { flex: 1; padding: 12px var(--pad); display: flex; flex-direction: column; gap: 8px; }
+.chat-day { align-self: center; font-size: 12px; color: var(--text-secondary); background: rgba(118, 118, 128, .12); border-radius: 999px; padding: 3px 10px; margin: 6px 0; }
+.bubble { align-self: flex-end; max-width: 82%; background: var(--primary); color: #fff; border-radius: 18px 18px 4px 18px; padding: 9px 13px; }
+.bubble-text { white-space: pre-wrap; font-size: 16px; line-height: 1.35; word-wrap: break-word; }
+.bubble-meta { font-size: 11px; opacity: .75; text-align: right; margin-top: 3px; }
+.chat-compose {
+  position: sticky;
+  bottom: 0;
+  background: rgba(242, 241, 247, .95);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-top: .5px solid rgba(0, 0, 0, .12);
+  padding: 10px var(--pad) 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-templates { padding-bottom: 2px; }
+.chat-input { min-height: 72px; background: #fff; }
+.chat-compose .btn { min-height: 44px; padding: 8px; }
+
+/* ---------- Расходы ---------- */
+
+.amount-input { font-size: 28px; font-weight: 700; text-align: center; min-height: 60px; }
+.cat-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cat-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; border-radius: 14px; border: 2px solid transparent; font-size: 13px; font-weight: 500; background: var(--bg); }
+.cat-tile.active { border-color: var(--primary); background: var(--surface); }
+.cat-emoji { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; }
+.cat-emoji svg { width: 22px; height: 22px; }
+.month-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 20px; font-weight: 700; padding: 22px 4px 8px; }
+.cat-summary { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 10px; }
+.cat-pill { font-size: 13px; background: var(--surface); border-radius: 999px; padding: 4px 10px; color: var(--text-secondary); }
+
+/* ---------- Статистика ---------- */
+
+.wv-nav.no-arrows .icon-btn { visibility: hidden; }
+.stats-period-title { font-weight: 600; font-size: 17px; }
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.kpi { padding: 14px; }
+.kpi-l { font-size: 13px; color: var(--text-secondary); }
+.kpi-v { font-size: 24px; font-weight: 700; margin: 2px 0; }
+.kpi-s { font-size: 12px; color: var(--text-secondary); }
+.chart-card { padding: 14px; margin-bottom: 12px; }
+.chart-title { font-weight: 700; margin-bottom: 10px; }
+.chart-box { position: relative; height: 200px; }
+.chart-box.small { height: 180px; margin-bottom: 10px; }
+
+/* ---------- Лист ожидания ---------- */
+
+.wl-card { padding: 14px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; border: 2px solid transparent; }
+.wl-card.match { border-color: var(--green); }
+.wl-top { display: flex; justify-content: space-between; align-items: center; }
+.wl-sub { font-size: 14px; color: var(--text-secondary); }
+.wl-sub.muted { font-size: 13px; }
+.wl-match { color: var(--green); font-weight: 600; }
+
+/* ---------- Галерея ---------- */
+
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; border-radius: 12px; overflow: hidden; }
+.photo-cell { position: relative; aspect-ratio: 1; background: #E5E5EA; overflow: hidden; }
+.photo-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-tag { position: absolute; left: 4px; bottom: 4px; font-size: 11px; font-weight: 600; color: #fff; background: rgba(0, 0, 0, .55); border-radius: 6px; padding: 1px 6px; }
+.photo-full { width: 100%; max-height: 50vh; object-fit: contain; border-radius: 12px; background: #000; }
+.client-photos { margin-bottom: 22px; }
+
+/* ---------- Отзывы ---------- */
+
+.stars { display: inline-flex; gap: 2px; color: #D1D1D6; --star: 16px; }
+.stars .star svg { width: var(--star); height: var(--star); }
+.stars .star.on { color: #FFB800; }
+.stars.big { gap: 10px; --star: 36px; }
+.stars.big .star { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+.rv-summary { display: flex; gap: 18px; align-items: center; padding: 16px; margin-bottom: 12px; }
+.rv-avg { font-size: 52px; font-weight: 700; line-height: 1; }
+.rv-avg-side { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.rv-dist { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.rv-dist-row { display: grid; grid-template-columns: 12px 1fr 20px; gap: 6px; align-items: center; font-size: 12px; color: var(--text-secondary); }
+.rv-bar { height: 5px; background: var(--separator); border-radius: 3px; overflow: hidden; }
+.rv-bar span { display: block; height: 100%; background: #FFB800; }
+.rv-card { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 14px; margin-bottom: 10px; text-align: left; }
+.rv-top { display: flex; justify-content: space-between; }
+.rv-text { font-size: 15px; line-height: 1.4; color: #3A3A3C; }

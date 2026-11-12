@@ -4,7 +4,8 @@ import * as data from '../db.js';
 import { el, html, esc, pressable, onSwipe } from '../components/ui.js';
 import { icons } from '../components/icons.js';
 import { openAppointmentForm } from '../components/appointment-form.js';
-import { openReminderTemplate, openMonthFinance } from '../components/quick-sheets.js';
+import { StatsScreen } from './stats.js';
+import { TemplatesScreen } from './templates.js';
 import { openFreeSlots } from './free-slots.js';
 import { AppointmentScreen } from './appointment.js';
 import { AlertsScreen } from './alerts.js';
@@ -50,7 +51,7 @@ export function HomeScreen(params, nav) {
 
   // ---- Клиенты и Финансы ----
   const clientsCard = pressable(el('button', { class: 'card stat-card', type: 'button', onclick: () => nav.push(ClientsScreen) }));
-  const financeCard = pressable(el('button', { class: 'card stat-card', type: 'button', onclick: () => openMonthFinance() }));
+  const financeCard = pressable(el('button', { class: 'card stat-card', type: 'button', onclick: () => nav.push(StatsScreen) }));
 
   // ---- Быстрые действия ----
   const tile = (ic, bg, color, label, onClick) => pressable(el('button', { class: 'qa', type: 'button', onclick: onClick },
@@ -58,7 +59,7 @@ export function HomeScreen(params, nav) {
   const quick = el('div', { class: 'card quick' },
     tile('calendarPlusFill', 'var(--pastel-yellow)', 'var(--orange)', 'Создать запись', () => openAppointmentForm({ date: selected >= today() ? selected : today() })),
     tile('calendarSlot', 'var(--pastel-yellow)', 'var(--orange)', 'Свободные окна', () => openFreeSlots()),
-    tile('chat', 'var(--pastel-green)', 'var(--green)', 'Уведомления', () => openReminderTemplate()),
+    tile('chat', 'var(--pastel-green)', 'var(--green)', 'Уведомления', () => nav.push(TemplatesScreen)),
     tile('help', 'var(--pastel-gray)', '#8A8A8E', 'Помощь', () => nav.push(HelpScreen)));
 
   root.append(dayCard, createCard, el('div', { class: 'two-cards' }, clientsCard, financeCard), quick);

@@ -153,6 +153,12 @@ export async function seedIfEmpty() {
     { amount: 12400, category: 'Материалы', date: addDays(addMonths(t, -1), 8), comment: 'Фрезы, пилки' },
   ]);
 
+  // --- Лист ожидания ---
+  await bulkInsertDemo('waitlist', [
+    { clientId: clients[6].id, serviceId: services[0].id, dateFrom: t, dateTo: addDays(t, 14), timeFrom: '15:00', timeTo: '19:00', note: 'Удобно после работы', status: 'waiting' },
+    { clientId: clients[12].id, serviceId: services[4].id, dateFrom: addDays(t, 3), dateTo: addDays(t, 10), timeFrom: '09:00', timeTo: '13:00', note: '', status: 'waiting' },
+  ]);
+
   // --- Отзывы ---
   await bulkInsertDemo('reviews', [
     { clientId: clients[0].id, rating: 5, text: 'Очень аккуратно и быстро, покрытие держится три недели!', date: addDays(t, -12) },

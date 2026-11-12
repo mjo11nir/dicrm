@@ -6,7 +6,8 @@ import { icon } from '../components/icons.js';
 import { openAppointmentForm } from '../components/appointment-form.js';
 import { fromMin, formatDayShort, formatDuration } from '../utils/dates.js';
 import { moneyFull } from '../utils/money.js';
-import { STATUSES, PAYMENT_METHODS, phoneDigits, fillTemplate, servicesTitle } from '../utils/appt.js';
+import { STATUSES, PAYMENT_METHODS, phoneDigits } from '../utils/appt.js';
+import { renderTemplate, templateVars, sendMessage } from '../messaging.js';
 
 export function AppointmentScreen({ id }, nav) {
   const root = el('div', { class: 'page page-white-top' });
@@ -19,8 +20,8 @@ export function AppointmentScreen({ id }, nav) {
       body.replaceChildren(emptyState({ title: 'Запись удалена', action: { label: 'Назад', onClick: () => nav.pop() } }));
       return;
     }
-    const [client, payments, settings, profile, locations] = await Promise.all([
-      data.get('clients', a.clientId), data.getPaymentsFor(a.id), data.getSettings(), data.getProfile(), data.getAll('locations'),
+    const [client, payments, profile, locations] = await Promise.all([
+      data.get('clients', a.clientId), data.getPaymentsFor(a.id), data.getProfile(), data.getAll('locations'),
     ]);
     const paid = payments.reduce((s, p) => s + p.amount, 0);
     const rest = Math.max(0, a.total - paid);
@@ -70,8 +71,11 @@ export function AppointmentScreen({ id }, nav) {
     } else if (a.status === 'completed' && rest > 0) {
       actions.appendChild(el('button', { class: 'btn btn-primary', type: 'button', onclick: () => completeAndPay(a, rest) }, `Принять оплату ${moneyFull(rest)}`));
     }
-    actions.appendChild(el('button', { class: 'btn btn-outline', type: 'button', disabled: !digits, onclick: () => sendReminder(a, client, settings, profile, location) },
+    actions.appendChild(el('button', { class: 'btn btn-outline', type: 'button', disabled: !digits, onclick: () => sendByTemplate('reminder', a, client, profile, location) },
       a.reminderSentAt ? 'Отправить напоминание ещё раз' : 'Отправить напоминание'));
+    if (a.status === 'scheduled') {
+      actions.appendChild(el('button', { class: 'btn btn-outline', type: 'button', disabled: !digits, onclick: () => sendByTemplate('confirmation', a, client, profile, location) }, 'Отправить подтверждение'));
+    }
     actions.appendChild(el('div', { class: 'btn-row' },
       el('button', { class: 'btn btn-outline', type: 'button', onclick: () => openAppointmentForm({ appointment: a, focus: 'time' }) }, 'Перенести'),
       el('button', { class: 'btn btn-outline', type: 'button', onclick: () => openAppointmentForm({ appointment: a }) }, 'Изменить')));
@@ -145,20 +149,19 @@ export function AppointmentScreen({ id }, nav) {
     toast('Запись удалена', { undo: () => data.restore('appointments', a.id) });
   }
 
-  async function sendReminder(a, client, settings, profile, location) {
-    const text = fillTemplate(settings.reminderTemplate, {
-      имя: (client?.name || '').split(' ')[0],
-      дата: formatDayShort(a.date),
-      время: fromMin(a.start),
-      услуга: servicesTitle(a),
-      адрес: location?.address || profile.address || '',
-      цена: moneyFull(a.total),
-    });
-    window.open(`https://wa.me/${phoneDigits(client.phone)}?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-    await data.update('appointments', a.id, { reminderSentAt: new Date().toISOString() });
-    // История сообщений (пригодится для вкладки «Чаты»)
-    await data.save('messages', { clientId: client.id, appointmentId: a.id, channel: 'whatsapp', kind: 'reminder', text, at: new Date().toISOString() });
-    toast('Напоминание отправлено');
+  /** Отправить клиенту сообщение по шаблону (напоминание или подтверждение) через WhatsApp */
+  async function sendByTemplate(kind, a, client, profile, location) {
+    const text = await renderTemplate(kind, templateVars({ client, appointment: a, profile, location }));
+    const ok = await sendMessage({ client, text, channel: 'whatsapp', kind, appointmentId: a.id });
+    if (!ok) { toast('У клиента нет телефона'); return; }
+    if (kind === 'reminder') {
+      await data.update('appointments', a.id, { reminderSentAt: new Date().toISOString() });
+      toast('Напоминание отправлено');
+    } else {
+      // Подтверждение отправлено — запись считается подтверждённой
+      if (a.status === 'scheduled') await data.update('appointments', a.id, { status: 'confirmed' });
+      toast('Подтверждение отправлено');
+    }
   }
 
   refresh();
