@@ -3,7 +3,7 @@
 // ниже крупный заголовок «Настройки» и группы iOS с цветными иконками.
 
 import * as data from '../db.js';
-import { el, navBar, groupedList, openSheet, field, toast, toggle, actionSheet } from '../components/ui.js';
+import { el, navBar, groupedList, openSheet, field, toast, toggle, actionSheet, segmented, downloadFile } from '../components/ui.js';
 import { icon } from '../components/icons.js';
 import { TemplatesScreen } from './templates.js';
 import { ScheduleSettingsScreen } from './schedule-settings.js';
@@ -11,6 +11,9 @@ import { ServicesScreen } from './services.js';
 import { ClientsDataScreen } from './clients-data.js';
 import { AlertsScreen } from './alerts.js';
 import { WaitlistScreen } from './waitlist.js';
+import { WebPageScreen } from './webpage.js';
+import { buildIcs } from '../utils/ics.js';
+import { today, addDays } from '../utils/dates.js';
 import { logoSvg } from './home.js';
 import { resizeImage, pickImageFile } from '../utils/image.js';
 
@@ -25,6 +28,9 @@ export const ACCENTS = [
 ];
 
 export const CURRENCIES = ['€', '₺', '$', '₽'];
+
+/** Темы оформления */
+const THEMES_UI = { auto: 'Авто', light: 'Светлая', dark: 'Тёмная' };
 
 const ORANGE = '#F0A626';
 const VIOLET = '#9137E8';
@@ -70,14 +76,18 @@ export function ProfileScreen(params, nav) {
         { icon: 'bellService', iconBg: VIOLET, title: 'Услуги и товары', onClick: () => nav.push(ServicesScreen) },
       ]),
       groupedList([
+        { icon: 'globe', iconBg: PINK, title: 'Web-страница', onClick: () => nav.push(WebPageScreen) },
+      ]),
+      groupedList([
         { icon: 'usersStroke', iconBg: PINK, title: 'Клиенты', onClick: () => nav.push(ClientsDataScreen) },
       ]),
       groupedList([
         { icon: 'messageCircle', iconBg: GREEN, title: 'Уведомления для клиентов', onClick: () => nav.push(TemplatesScreen) },
         { icon: 'bell', iconBg: GREEN, title: 'Оповещения', onClick: () => nav.push(AlertsScreen) },
+        { icon: 'calendar', iconBg: GREEN, title: 'Синхронизация с календарем', onClick: () => openCalendarExport(settings) },
       ]),
       groupedList([
-        { icon: 'palette', iconBg: GRAY, title: 'Оформление', onClick: () => openAppearance(settings) },
+        { icon: 'palette', iconBg: GRAY, title: 'Оформление', value: THEMES_UI[settings.theme || 'auto'], onClick: () => openAppearance(settings) },
         { icon: 'languages', iconBg: GRAY, title: 'Язык и регион', value: settings.currency, onClick: () => openRegion(settings) },
       ]),
       groupedList([
@@ -143,21 +153,58 @@ export function ProfileScreen(params, nav) {
     })));
     renderSw();
     let bg = settings.homeBackground !== false;
+    let theme = settings.theme || 'auto';
+    const themeSeg = segmented({
+      options: Object.entries(THEMES_UI).map(([value, label]) => ({ value, label })),
+      value: theme,
+      full: true,
+      onChange: (v) => { theme = v; },
+    });
     const nameIn = el('input', { class: 'input', type: 'text', maxlength: 30, value: settings.appName });
     openSheet({
       title: 'Оформление',
       content: el('div', { class: 'form' },
+        el('div', { class: 'form-section' }, el('div', { class: 'form-section-title' }, 'Тема'), themeSeg,
+          el('div', { class: 'hint' }, '«Авто» — как в настройках iPhone.')),
         groupedList([{ title: 'Переливающийся фон Главной', control: toggle(bg, (v) => { bg = v; }) }]),
         el('div', { class: 'form-section' }, el('div', { class: 'form-section-title' }, 'Акцентный цвет'), swatches),
-        el('div', { class: 'form-section' }, field('Название приложения', nameIn)),
-        el('div', { class: 'hint' }, 'Тёмная тема появится в одном из следующих обновлений.')),
+        el('div', { class: 'form-section' }, field('Название приложения', nameIn))),
       actionText: 'Сохранить',
       cancelText: 'Отмена',
       onAction: async () => {
+        await data.setSetting('theme', theme);
         await data.setSetting('homeBackground', bg);
         await data.setSetting('accent', accent);
         await data.setSetting('appName', nameIn.value.trim() || data.DEFAULT_SETTINGS.appName);
         toast('Оформление сохранено');
+        return true;
+      },
+    });
+  }
+
+  /** Экспорт записей в .ics — файл открывается в Календаре iPhone («Добавить все») */
+  function openCalendarExport(settings) {
+    let range = 'future';
+    const seg = segmented({
+      options: [{ value: 'future', label: 'Будущие' }, { value: 'quarter', label: '3 месяца' }, { value: 'all', label: 'Все' }],
+      value: range,
+      full: true,
+      onChange: (v) => { range = v; },
+    });
+    openSheet({
+      title: 'Синхронизация с календарем',
+      content: el('div', { class: 'form' },
+        el('div', { class: 'hint' }, 'Скачайте файл .ics и откройте его на iPhone — Календарь предложит добавить записи. Если запись уже была добавлена раньше, Календарь обновит её, а не создаст копию.'),
+        el('div', { class: 'form-section' }, el('div', { class: 'form-section-title' }, 'Какие записи'), seg)),
+      actionText: 'Скачать .ics',
+      cancelText: 'Отмена',
+      onAction: async () => {
+        const t = today();
+        const [appts, clientsMap, locations] = await Promise.all([data.getAll('appointments'), data.getClientsMap(), data.getAll('locations')]);
+        const list = appts.filter((a) => range === 'all' || (a.date >= t && (range === 'future' || a.date <= addDays(t, 90))));
+        if (!list.length) { toast('Нет записей для экспорта'); return false; }
+        downloadFile(`zapisi-${t}.ics`, buildIcs(list, clientsMap, { name: settings.appName, location: locations[0] }), 'text/calendar');
+        toast(`Экспортировано записей: ${list.filter((a) => a.status !== 'cancelled').length}`);
         return true;
       },
     });

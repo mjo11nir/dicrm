@@ -11,6 +11,7 @@ import { AppointmentScreen } from './appointment.js';
 import { AlertsScreen } from './alerts.js';
 import { HelpScreen } from './help.js';
 import { ClientsScreen } from './clients.js';
+import { BackupScreen, backupDue } from './backup.js';
 import { getDayHours } from '../utils/slots.js';
 import {
   today, addDays, startOfWeek, startOfMonth, endOfMonth, fromMin, formatDayShort,
@@ -62,7 +63,20 @@ export function HomeScreen(params, nav) {
     tile('chat', 'var(--pastel-green)', 'var(--green)', 'Уведомления', () => nav.push(TemplatesScreen)),
     tile('help', 'var(--pastel-gray)', '#8A8A8E', 'Помощь', () => nav.push(HelpScreen)));
 
-  root.append(dayCard, createCard, el('div', { class: 'two-cards' }, clientsCard, financeCard), quick);
+  // Напоминание о резервной копии (раз в 7 дней)
+  const backupCard = el('div', { class: 'card backup-card', hidden: true },
+    el('button', { class: 'backup-main', type: 'button', onclick: () => nav.push(BackupScreen) },
+      el('b', {}, 'Пора сделать резервную копию'),
+      el('span', {}, 'Данные хранятся только на этом телефоне — сохраните копию в «Файлы».')),
+    el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Напомнить завтра', html: icons.x, onclick: () => {
+      // «Позже» — следующее напоминание через сутки
+      const s0 = nav.app.settings || {};
+      const base = new Date(Date.now() - (7 - 1) * 86400000).toISOString();
+      if (!s0.lastBackupAt || s0.lastBackupAt < base) data.setSetting('lastBackupAt', base);
+      backupCard.hidden = true;
+    } }));
+
+  root.append(dayCard, backupCard, createCard, el('div', { class: 'two-cards' }, clientsCard, financeCard), quick);
 
   // Сжатие шапки при прокрутке: имя уходит, появляется дата выбранного дня
   requestAnimationFrame(() => {
@@ -79,6 +93,7 @@ export function HomeScreen(params, nav) {
 
     // Фон Главной можно выключить в настройках
     root.classList.toggle('no-bg', nav.app.settings?.homeBackground === false);
+    backupCard.hidden = !backupDue(nav.app.settings || {});
 
     // Шапка
     avatarEl.replaceChildren(profile.avatar ? el('img', { src: profile.avatar, alt: '' }) : html(`<span class="home-logo">${logoSvg()}</span>`));

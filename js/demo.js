@@ -2,7 +2,7 @@
 // записи на прошлый, текущий и следующий месяц, несколько расходов и отзывов.
 // Все демо-записи помечены полем demo: true (в этапе 4 их можно будет удалить одной кнопкой).
 
-import { bulkInsertDemo, uuid, isEmpty } from './db.js';
+import { bulkInsertDemo, uuid, isEmpty, setSetting } from './db.js';
 import { today, addDays, addMonths, startOfMonth, endOfMonth, weekdayIndex, diffDays, nowMin } from './utils/dates.js';
 import { calcTotal } from './utils/appt.js';
 
@@ -27,6 +27,8 @@ const LAST = ['Иванова', 'Петрова', 'Соколова', 'Кузн�
 
 export async function seedIfEmpty() {
   if (!(await isEmpty())) return false;
+  // Дата первого запуска — от неё считается напоминание о резервной копии
+  await setSetting('firstRunAt', new Date().toISOString());
   const rand = rng(20261112);
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
   const t = today();

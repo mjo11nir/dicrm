@@ -1,5 +1,5 @@
 // Вкладка «Другое» (docs/screenshots/03-more.jpg): крупный заголовок и отдельные карточки
-// с пастельными иконками. «Резервная копия» добавится в этапе 4.
+// с пастельными иконками; внизу — дополнительная карточка «Резервная копия».
 
 import { el, pressable } from '../components/ui.js';
 import { icons } from '../components/icons.js';
@@ -11,6 +11,7 @@ import { StatsScreen } from './stats.js';
 import { ExpensesScreen } from './expenses.js';
 import { GalleryScreen } from './gallery.js';
 import { ReviewsScreen } from './reviews.js';
+import { BackupScreen } from './backup.js';
 
 export function MoreScreen(params, nav) {
   const item = (ic, bg, color, label, onClick) => pressable(el('button', { class: 'more-card', type: 'button', onclick: onClick },
@@ -26,7 +27,9 @@ export function MoreScreen(params, nav) {
     item('users', 'var(--pastel-pink)', 'var(--pink)', 'Клиенты', () => nav.push(ClientsScreen)),
     item('imageFill', 'var(--pastel-pink)', 'var(--pink)', 'Галерея', () => nav.push(GalleryScreen)),
     item('thumbUp', 'var(--pastel-pink)', 'var(--pink)', 'Отзывы', () => nav.push(ReviewsScreen)),
-    item('help', 'var(--pastel-gray)', '#8A8A8E', 'Помощь', () => nav.push(HelpScreen)));
+    item('help', 'var(--pastel-gray)', '#8A8A8E', 'Помощь', () => nav.push(HelpScreen)),
+    el('div', { class: 'more-gap' }),
+    item('database', 'var(--pastel-blue)', '#007AFF', 'Резервная копия', () => nav.push(BackupScreen)));
 
   return { el: root };
 }

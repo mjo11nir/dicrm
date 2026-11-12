@@ -169,6 +169,17 @@ export function openModal({ title, content, onClose = null }) {
   return { close, el: modal, body };
 }
 
+/** Сохранить файл на устройство (Blob или строка) */
+export function downloadFile(name, content, type = 'application/octet-stream') {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: name });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 /** Однократная загрузка внешнего скрипта (библиотеки по CDN подключаются по требованию) */
 const scriptCache = new Map();
 export function loadScript(src) {

@@ -145,8 +145,49 @@ function buildTabBar() {
 /** Применить настройки, влияющие на всё приложение: валюта, акцентный цвет, название */
 function applySettings(s) {
   setCurrency(s.currency);
-  if (s.accent) document.documentElement.style.setProperty('--primary', s.accent);
+  const html = document.documentElement;
+  if (s.accent) html.style.setProperty('--primary', s.accent);
+  // Тема: auto — по системе, light/dark — вручную
+  if (s.theme === 'light' || s.theme === 'dark') html.dataset.theme = s.theme;
+  else delete html.dataset.theme;
+  updateThemeColor();
   document.title = s.appName;
+}
+
+/** Цвет строки состояния (theme-color) под текущую тему */
+function updateThemeColor() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const forced = document.documentElement.dataset.theme;
+  const dark = forced ? forced === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  meta.setAttribute('content', dark ? '#000000' : '#F2F1F7');
+}
+window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', updateThemeColor);
+
+/** Service worker — работа без интернета. Только по https или на localhost. */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+  if (!secure) return;
+  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker не зарегистрирован:', e));
+}
+
+/** Подсказка при первом открытии в Safari на iPhone: как добавить приложение на экран «Домой» */
+function maybeShowInstallHint() {
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('installHintDismissed') === '1'; } catch { /* приватный режим */ }
+  if (!ios || standalone || dismissed) return;
+  const hint = el('div', { class: 'install-hint', role: 'dialog', 'aria-label': 'Установка приложения' },
+    el('div', { class: 'install-text' },
+      el('b', {}, 'Установите приложение'),
+      el('span', {}, 'Нажмите «Поделиться» внизу Safari и выберите «На экран „Домой“» — приложение откроется на весь экран и будет работать без интернета.')),
+    el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Закрыть', html: icons.x, onclick: () => {
+      try { localStorage.setItem('installHintDismissed', '1'); } catch { /* ничего */ }
+      hint.remove();
+    } }));
+  document.body.appendChild(hint);
 }
 
 async function start() {
@@ -170,6 +211,8 @@ async function start() {
   }
   root.replaceChildren(panes, buildTabBar());
   switchTab('home');
+  registerServiceWorker();
+  maybeShowInstallHint();
 
   window.addEventListener('db:change', async () => {
     app.settings = await getSettings();

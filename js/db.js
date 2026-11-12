@@ -182,6 +182,80 @@ export async function isEmpty() {
   return (await db.schedule.count()) === 0;
 }
 
+// ---------- Резервная копия ----------
+
+/** Таблицы, которые попадают в резервную копию (outbox — служебный журнал, не нужен) */
+export const BACKUP_TABLES = db.tables.map((t) => t.name).filter((n) => n !== 'outbox');
+
+/** Blob → data URL (для фото в JSON) */
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/** Выгрузить все данные (включая удалённые и фото) в один объект */
+export async function exportAll() {
+  const out = { app: 'beauty-crm', version: 1, exportedAt: nowIso(), tables: {} };
+  for (const name of BACKUP_TABLES) {
+    const rows = await db[name].toArray();
+    if (name === 'gallery') {
+      for (const r of rows) if (r.blob instanceof Blob) r.blob = { dataUrl: await blobToDataUrl(r.blob) };
+    }
+    out.tables[name] = rows;
+  }
+  return out;
+}
+
+/** Загрузить резервную копию: полностью заменяет текущие данные */
+export async function importAll(backup) {
+  if (!backup || backup.app !== 'beauty-crm' || !backup.tables) throw new Error('Это не резервная копия Beauty CRM');
+  // Фото: data URL → Blob (до транзакции — fetch внутри транзакции IndexedDB недопустим)
+  const gallery = backup.tables.gallery || [];
+  for (const r of gallery) {
+    if (r.blob?.dataUrl) r.blob = await (await fetch(r.blob.dataUrl)).blob();
+  }
+  await db.transaction('rw', db.tables, async () => {
+    for (const name of BACKUP_TABLES) {
+      await db[name].clear();
+      const rows = backup.tables[name];
+      if (Array.isArray(rows) && rows.length) await db[name].bulkPut(rows);
+    }
+    await db.outbox.add({ table: '*', recordId: '*', op: 'import', at: nowIso() });
+  });
+  emitChange();
+}
+
+/** Есть ли в базе демо-данные */
+export async function hasDemo() {
+  return (await db.clients.filter((c) => c.demo && !c.deleted).count()) > 0 ||
+    (await db.appointments.filter((a) => a.demo && !a.deleted).count()) > 0;
+}
+
+/**
+ * Удалить демо-данные. График, услуги и место работы остаются (их обычно
+ * просто правят под себя), профиль сбрасывается к пустому.
+ */
+export async function deleteDemo() {
+  const tables = ['clients', 'appointments', 'payments', 'expenses', 'reviews', 'waitlist', 'breaks', 'scheduleExceptions', 'messages', 'gallery'];
+  await db.transaction('rw', tables.map((n) => db[n]).concat(db.profile, db.outbox), async () => {
+    const demoClients = new Set((await db.clients.toArray()).filter((c) => c.demo).map((c) => c.id));
+    for (const n of tables) {
+      const rows = await db[n].toArray();
+      const ids = rows.filter((r) => r.demo || (r.clientId && demoClients.has(r.clientId) && (n === 'messages' || n === 'gallery'))).map((r) => r.id);
+      if (ids.length) await db[n].bulkDelete(ids);
+    }
+    for (const p of await db.profile.toArray()) {
+      if (p.demo) await db.profile.put({ ...p, name: 'Мастер', phone: '', address: '', demo: false, updatedAt: nowIso() });
+    }
+    await db.outbox.add({ table: '*', recordId: '*', op: 'deleteDemo', at: nowIso() });
+  });
+  emitChange();
+}
+
 /** Массовая вставка без записи в outbox — только для демо-данных */
 export async function bulkInsertDemo(table, records) {
   const t = nowIso();
