@@ -9,6 +9,7 @@ import { getDayHours, findConflicts } from '../utils/slots.js';
 import { today, toMin, fromMin, addDays, formatDuration, formatDayShort, roundUp, nowMin } from '../utils/dates.js';
 import { moneyFull, parseMoney, centsToInput } from '../utils/money.js';
 import { calcTotal, REPEAT_OPTIONS } from '../utils/appt.js';
+import { canPickContacts, pickContact, findClientByPhone, CONTACTS_HINT } from '../utils/contacts.js';
 
 /** Сколько повторов создавать для серии (примерно на 3 месяца вперёд) */
 const SERIES_DAYS = 90;
@@ -88,17 +89,37 @@ export async function openAppointmentForm(opts = {}) {
     const input = el('input', { class: 'input', type: 'search', placeholder: 'Поиск по имени или телефону', autocomplete: 'off' });
     const list = el('div', { class: 'pick-list' });
     const newBtn = el('button', { class: 'link-btn add-client-btn', type: 'button', html: `${icon('plus')} новый клиент` });
-    const newBox = el('div', { class: 'new-client', hidden: true });
-    const nameIn = el('input', { class: 'input', placeholder: 'Имя и фамилия', autocomplete: 'off' });
-    const phoneIn = el('input', { class: 'input', type: 'tel', placeholder: 'Телефон', autocomplete: 'off' });
-    newBox.append(nameIn, phoneIn, el('button', { class: 'btn btn-primary small', type: 'button', onclick: () => {
+    const contactsBtn = el('button', { class: 'link-btn add-client-btn', type: 'button', html: `${icon('user')} из контактов` });
+    // Форма (а не div) и autocomplete="name"/"tel" нужны, чтобы Safari предлагал «Автозаполнение контакта»
+    const newBox = el('form', { class: 'new-client', hidden: true, autocomplete: 'on', onsubmit: (e) => { e.preventDefault(); addNew(); } });
+    const nameIn = el('input', { class: 'input', name: 'name', placeholder: 'Имя и фамилия', autocomplete: 'name' });
+    const phoneIn = el('input', { class: 'input', name: 'tel', type: 'tel', placeholder: 'Телефон', autocomplete: 'tel' });
+    const hint = el('div', { class: 'hint', hidden: true }, CONTACTS_HINT);
+    function addNew() {
       if (!nameIn.value.trim()) { nameIn.focus(); toast('Введите имя клиента'); return; }
-      st.newClient = { name: nameIn.value.trim(), phone: phoneIn.value.trim() };
-      renderClient();
-    } }, 'Добавить'));
+      useContact({ name: nameIn.value.trim(), phone: phoneIn.value.trim() });
+    }
+    newBox.append(nameIn, phoneIn, hint, el('button', { class: 'btn btn-primary small', type: 'submit' }, 'Добавить'));
     newBtn.addEventListener('click', () => {
       newBox.hidden = !newBox.hidden;
+      hint.hidden = true;
       if (!newBox.hidden) { nameIn.value = input.value; nameIn.focus(); }
+    });
+    contactsBtn.addEventListener('click', async () => {
+      if (!canPickContacts()) {
+        // Системный выбор недоступен — открываем поля с автозаполнением и подсказку
+        newBox.hidden = false;
+        hint.hidden = false;
+        nameIn.focus();
+        return;
+      }
+      try {
+        const c = await pickContact();
+        if (c) useContact(c);
+      } catch (e) {
+        toast('Не удалось открыть контакты');
+        console.warn(e);
+      }
     });
 
     function renderList() {
@@ -111,7 +132,23 @@ export async function openAppointmentForm(opts = {}) {
     }
     input.addEventListener('input', renderList);
     renderList();
-    clientBox.append(input, list, newBtn, newBox);
+    clientBox.append(input, list, el('div', { class: 'client-add-row' }, newBtn, contactsBtn), newBox);
+  }
+
+  /** Контакт из телефонной книги (или введённый вручную): если номер уже есть в базе — выбираем этого клиента */
+  function useContact(c) {
+    const existing = findClientByPhone(clients, c.phone);
+    if (existing) {
+      st.clientId = existing.id;
+      st.newClient = null;
+      applyClientDiscount(existing);
+      toast(`Клиент уже есть в базе: ${existing.name}`);
+    } else {
+      st.clientId = null;
+      st.newClient = c;
+    }
+    renderClient();
+    renderWarnings();
   }
 
   // ---- Услуги ----
