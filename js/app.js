@@ -169,7 +169,21 @@ function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
   if (!secure) return;
-  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker не зарегистрирован:', e));
+  // Если страницей уже управлял service worker, смена управляющего = вышла новая версия
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return;
+    toast('Доступна новая версия приложения', {
+      duration: 60000,
+      action: { label: 'Обновить', onClick: () => location.reload() },
+    });
+  });
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    // Приложение на экране «Домой» редко перезагружается — проверяем обновления при каждом возвращении в него
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch((e) => console.warn('Service worker не зарегистрирован:', e));
 }
 
 /** Подсказка при первом открытии в Safari на iPhone: как добавить приложение на экран «Домой» */

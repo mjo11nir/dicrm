@@ -5,7 +5,7 @@
 //  • библиотеки с CDN — из кэша, сеть только если их там нет.
 // При выпуске новой версии увеличьте VERSION — старый кэш удалится.
 
-const VERSION = 'v4.1.0';
+const VERSION = 'v4.1.1';
 const APP_CACHE = `beauty-crm-app-${VERSION}`;
 const CDN_CACHE = 'beauty-crm-cdn-v1';
 
@@ -74,7 +74,9 @@ const CDN_FILES = [
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const app = await caches.open(APP_CACHE);
-    await app.addAll(APP_FILES);
+    // cache: 'reload' — берём файлы с сервера, мимо HTTP-кэша браузера,
+    // иначе в новую версию могли попасть старые файлы (GitHub Pages разрешает кэшировать их 10 минут)
+    await app.addAll(APP_FILES.map((url) => new Request(url, { cache: 'reload' })));
     // Библиотеки кэшируем по одной: если какая-то не скачалась, установка всё равно пройдёт
     const cdn = await caches.open(CDN_CACHE);
     await Promise.all(CDN_FILES.map(async (url) => {
@@ -121,7 +123,8 @@ self.addEventListener('fetch', (event) => {
     const cache = await caches.open(APP_CACHE);
     const key = req.mode === 'navigate' ? 'index.html' : req;
     const cached = await cache.match(key, { ignoreSearch: true });
-    const network = fetch(req).then((res) => {
+    // Фоновое обновление тоже идёт мимо HTTP-кэша (no-cache — с проверкой на сервере)
+    const network = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then((res) => {
       if (res.ok && res.type === 'basic') cache.put(key, res.clone());
       return res;
     }).catch(() => null);

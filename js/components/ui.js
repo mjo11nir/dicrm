@@ -53,15 +53,17 @@ let toastTimer = null;
  * @param {string} text
  * @param {{undo?: Function, duration?: number}} opts
  */
-export function toast(text, { undo = null, duration = 3500 } = {}) {
+export function toast(text, { undo = null, action = null, duration = 3500 } = {}) {
   document.querySelector('.toast')?.remove();
   clearTimeout(toastTimer);
   const t = el('div', { class: 'toast', role: 'status' }, el('span', {}, text));
-  if (undo) {
+  // undo — кнопка «Отменить»; action — своя кнопка { label, onClick }
+  const btn = undo ? { label: 'Отменить', onClick: undo } : action;
+  if (btn) {
     t.appendChild(el('button', {
       class: 'toast-undo',
-      onclick: async () => { t.remove(); await undo(); },
-    }, 'Отменить'));
+      onclick: async () => { t.remove(); await btn.onClick(); },
+    }, btn.label));
   }
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
