@@ -11,6 +11,7 @@ import { money, moneyFull } from '../utils/money.js';
 import { STATUSES, servicesTitle, phoneDigits } from '../utils/appt.js';
 import { clientStats } from '../utils/clients.js';
 import { resizeImage, pickImageFile } from '../utils/image.js';
+import { canPickContacts, pickContact, CONTACTS_HINT } from '../utils/contacts.js';
 import { photoGrid, createUrlPool, uploadPhotos } from './gallery.js';
 
 export function ClientScreen({ id }, nav) {
@@ -120,8 +121,17 @@ export function ClientScreen({ id }, nav) {
 
 /** Форма создания/редактирования клиента */
 export function openClientForm(c = null, { name = '', onSaved = null } = {}) {
-  const nameIn = el('input', { class: 'input', type: 'text', placeholder: 'Имя и фамилия', value: c?.name || name });
-  const phoneIn = el('input', { class: 'input', type: 'tel', placeholder: '+7 900 000-00-00', value: c?.phone || '' });
+  const nameIn = el('input', { class: 'input', type: 'text', name: 'name', autocomplete: 'name', placeholder: 'Имя и фамилия', value: c?.name || name });
+  const phoneIn = el('input', { class: 'input', type: 'tel', name: 'tel', autocomplete: 'tel', placeholder: '+7 900 000-00-00', value: c?.phone || '' });
+  const hint = el('div', { class: 'hint', hidden: true }, CONTACTS_HINT);
+  // Кнопка «Из контактов»: заполняет имя и телефон из телефонной книги
+  const fromContacts = c ? null : el('button', { class: 'btn btn-outline small', type: 'button', onclick: async () => {
+    if (!canPickContacts()) { hint.hidden = false; nameIn.focus(); return; }
+    try {
+      const picked = await pickContact();
+      if (picked) { nameIn.value = picked.name; phoneIn.value = picked.phone; }
+    } catch { toast('Не удалось открыть контакты'); }
+  } }, 'Выбрать из контактов');
   const tgIn = el('input', { class: 'input', type: 'text', placeholder: '@username', value: c?.telegram || '' });
   const bdIn = el('input', { class: 'input', type: 'date', value: c?.birthday || '' });
   const discIn = el('input', { class: 'input', type: 'number', min: 0, max: 100, inputmode: 'numeric', placeholder: '0', value: c?.discount || '' });
@@ -132,7 +142,7 @@ export function openClientForm(c = null, { name = '', onSaved = null } = {}) {
     title: c ? 'Клиент' : 'Новый клиент',
     full: true,
     content: el('div', { class: 'form' },
-      el('div', { class: 'form-section' }, field('Имя', nameIn), field('Телефон', phoneIn), field('Telegram', tgIn, 'Если не указан — ссылка строится по телефону')),
+      el('form', { class: 'form-section', autocomplete: 'on', onsubmit: (e) => e.preventDefault() }, fromContacts, hint, field('Имя', nameIn), field('Телефон', phoneIn), field('Telegram', tgIn, 'Если не указан — ссылка строится по телефону')),
       el('div', { class: 'form-section' },
         el('div', { class: 'grid2' }, field('День рождения', bdIn), field('Личная скидка, %', discIn)),
         field('Теги', tagsIn, 'Через запятую'),
