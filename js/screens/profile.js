@@ -12,7 +12,7 @@ import { ClientsDataScreen } from './clients-data.js';
 import { AlertsScreen } from './alerts.js';
 import { WaitlistScreen } from './waitlist.js';
 import { WebPageScreen } from './webpage.js';
-import { buildIcs } from '../utils/ics.js';
+import { buildIcs, CALENDAR_ALARMS } from '../utils/ics.js';
 import { today, addDays } from '../utils/dates.js';
 import { logoSvg } from './home.js';
 import { resizeImage, pickImageFile } from '../utils/image.js';
@@ -191,11 +191,20 @@ export function ProfileScreen(params, nav) {
       full: true,
       onChange: (v) => { range = v; },
     });
+    let alarms = settings.calendarAlarms || 'day';
+    const alarmSeg = segmented({
+      options: Object.entries(CALENDAR_ALARMS).map(([value, a]) => ({ value, label: a.label.replace('Без напоминаний', 'Нет') })),
+      value: alarms,
+      full: true,
+      onChange: (v) => { alarms = v; },
+    });
     openSheet({
       title: 'Синхронизация с календарем',
       content: el('div', { class: 'form' },
         el('div', { class: 'hint' }, 'Скачайте файл .ics и откройте его на iPhone — Календарь предложит добавить записи. Если запись уже была добавлена раньше, Календарь обновит её, а не создаст копию.'),
-        el('div', { class: 'form-section' }, el('div', { class: 'form-section-title' }, 'Какие записи'), seg)),
+        el('div', { class: 'form-section' }, el('div', { class: 'form-section-title' }, 'Какие записи'), seg),
+        el('div', { class: 'form-section' }, el('div', { class: 'form-section-title' }, 'Напоминание'), alarmSeg,
+          el('div', { class: 'hint' }, 'Календарь пришлёт уведомление, даже если приложение закрыто.'))),
       actionText: 'Скачать .ics',
       cancelText: 'Отмена',
       onAction: async () => {
@@ -203,7 +212,8 @@ export function ProfileScreen(params, nav) {
         const [appts, clientsMap, locations] = await Promise.all([data.getAll('appointments'), data.getClientsMap(), data.getAll('locations')]);
         const list = appts.filter((a) => range === 'all' || (a.date >= t && (range === 'future' || a.date <= addDays(t, 90))));
         if (!list.length) { toast('Нет записей для экспорта'); return false; }
-        downloadFile(`zapisi-${t}.ics`, buildIcs(list, clientsMap, { name: settings.appName, location: locations[0] }), 'text/calendar');
+        if (alarms !== (settings.calendarAlarms || 'day')) await data.setSetting('calendarAlarms', alarms);
+        downloadFile(`zapisi-${t}.ics`, buildIcs(list, clientsMap, { name: settings.appName, location: locations[0], alarms }), 'text/calendar');
         toast(`Экспортировано записей: ${list.filter((a) => a.status !== 'cancelled').length}`);
         return true;
       },

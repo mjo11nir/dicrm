@@ -5,7 +5,7 @@
 //  • библиотеки с CDN — из кэша, сеть только если их там нет.
 // При выпуске новой версии увеличьте VERSION — старый кэш удалится.
 
-const VERSION = 'v4.1.1';
+const VERSION = 'v4.2.0';
 const APP_CACHE = `beauty-crm-app-${VERSION}`;
 const CDN_CACHE = 'beauty-crm-cdn-v1';
 
@@ -25,6 +25,7 @@ const APP_FILES = [
   'js/components/appointment-form.js',
   'js/components/day-forms.js',
   'js/components/icons.js',
+  'js/components/notify.js',
   'js/components/ui.js',
   'js/screens/alerts.js',
   'js/screens/appointment.js',
@@ -58,6 +59,7 @@ const APP_FILES = [
   'js/utils/ics.js',
   'js/utils/image.js',
   'js/utils/money.js',
+  'js/utils/phone.js',
   'js/utils/slots.js',
   'js/utils/stats.js',
   'js/utils/waitlist.js',

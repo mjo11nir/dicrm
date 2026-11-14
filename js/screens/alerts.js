@@ -11,6 +11,7 @@ import { isBlocking } from '../utils/slots.js';
 import { clientStats, isDueAgain } from '../utils/clients.js';
 import { matchWaitlist, isWaiting } from '../utils/waitlist.js';
 import { WaitlistScreen, loadWaitlistContext } from './waitlist.js';
+import { openTomorrowReminders } from '../components/notify.js';
 
 export function AlertsScreen(params, nav) {
   const root = el('div', { class: 'page' });
@@ -64,7 +65,10 @@ export function AlertsScreen(params, nav) {
       return;
     }
     const notSent = tmr.filter((a) => !a.reminderSentAt).length;
-    if (notSent) body.appendChild(el('div', { class: 'alert-banner' }, `Не отправлено напоминаний на завтра: ${notSent}`));
+    if (notSent) {
+      body.appendChild(el('button', { class: 'alert-banner tappable', type: 'button', onclick: () => openTomorrowReminders() },
+        `Не отправлено напоминаний на завтра: ${notSent}`, el('span', { class: 'alert-banner-action' }, 'Отправить')));
+    }
     if (wlMatches.length) {
       body.appendChild(groupedList(wlMatches.map(({ e, m }) => ({
         title: clientsMap.get(e.clientId)?.name || 'Клиент',

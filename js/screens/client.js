@@ -8,7 +8,9 @@ import { openAppointmentForm } from '../components/appointment-form.js';
 import { AppointmentScreen } from './appointment.js';
 import { formatDayShort, formatDayLong, fromMin, diffDays, today } from '../utils/dates.js';
 import { money, moneyFull } from '../utils/money.js';
-import { STATUSES, servicesTitle, phoneDigits } from '../utils/appt.js';
+import { STATUSES, servicesTitle } from '../utils/appt.js';
+import { clientPhone, whatsappChatUrl } from '../messaging.js';
+import { telegramUrl } from '../utils/phone.js';
 import { clientStats } from '../utils/clients.js';
 import { resizeImage, pickImageFile } from '../utils/image.js';
 import { canPickContacts, pickContact, CONTACTS_HINT } from '../utils/contacts.js';
@@ -34,15 +36,15 @@ export function ClientScreen({ id }, nav) {
     const photos = (await data.getAll('gallery')).filter((p) => p.clientId === id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     pool.clear();
     const st = clientStats(id, all);
-    const d = phoneDigits(c.phone);
+    const d = clientPhone(c);
 
     // Шапка: фото (нажатие — загрузить), имя, телефон, связь
     const photo = el('button', { class: 'client-photo', type: 'button', 'aria-label': 'Изменить фото', onclick: () => changePhoto(c) },
       avatar(c, { size: 84 }), el('span', { class: 'client-photo-edit' }, c.avatar ? 'Изменить' : 'Фото'));
     const contact = (ic, label, href) => href
-      ? el('a', { class: 'contact-btn', href, target: ic === 'phone' ? '_self' : '_blank', rel: 'noopener' }, el('span', { html: icon(ic) }), el('span', {}, label))
+      ? el('a', { class: 'contact-btn', href, target: /^https?:/.test(href) ? '_blank' : '_self', rel: 'noopener' }, el('span', { html: icon(ic) }), el('span', {}, label))
       : el('button', { class: 'contact-btn', type: 'button', disabled: true }, el('span', { html: icon(ic) }), el('span', {}, label));
-    const tg = c.telegram ? `https://t.me/${c.telegram.replace(/^@/, '')}` : (d ? `https://t.me/+${d}` : null);
+    const tg = telegramUrl(d, c.telegram);
     const head = el('div', { class: 'appt-head card' },
       photo,
       el('div', { class: 'appt-head-name' }, c.name),
@@ -50,7 +52,7 @@ export function ClientScreen({ id }, nav) {
       c.tags?.length ? el('div', { class: 'tag-row' }, c.tags.map((t) => el('span', { class: 'tag' }, t))) : null,
       el('div', { class: 'contact-row four' },
         contact('phone', 'Позвонить', d ? `tel:+${d}` : null),
-        contact('whatsapp', 'WhatsApp', d ? `https://wa.me/${d}` : null),
+        contact('whatsapp', 'WhatsApp', whatsappChatUrl(c)),
         contact('send', 'Telegram', tg),
         el('button', { class: 'contact-btn', type: 'button', onclick: () => openAppointmentForm({ clientId: c.id }) }, el('span', { html: icon('calendarPlus') }), el('span', {}, 'Записать'))));
 

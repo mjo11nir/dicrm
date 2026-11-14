@@ -1,18 +1,27 @@
 // Шаблоны сообщений клиентам и отправка через WhatsApp / Telegram.
 // Настоящей переписки без сервера нет: сообщение открывается в мессенджере
-// с готовым текстом (wa.me / t.me), а копия сохраняется в таблицу messages.
+// с готовым текстом, а копия сохраняется в таблицу messages.
+//
+// На телефоне WhatsApp открывается схемой whatsapp:// — сразу в приложении, без страницы wa.me.
+// Переход по схеме не считается всплывающим окном, поэтому Safari не блокирует его,
+// даже если перед этим текст готовился асинхронно. Если WhatsApp не открылся за 2 секунды,
+// появляется кнопка «Открыть через wa.me».
 
 import * as data from './db.js';
+import { toast } from './components/ui.js';
 import { fromMin, formatDayShort } from './utils/dates.js';
 import { moneyFull } from './utils/money.js';
-import { fillTemplate, phoneDigits, servicesTitle } from './utils/appt.js';
+import { fillTemplate, servicesTitle } from './utils/appt.js';
+import { waPhone, whatsappUrl, telegramUrl, guessCountryCode, isMobileDevice } from './utils/phone.js';
 
 /** Шаблоны по умолчанию. Переменные: {имя} {дата} {время} {услуга} {адрес} {цена} {окна} */
 export const TEMPLATE_DEFS = [
-  { key: 'reminder', title: 'Напоминание', hint: 'Отправляется из карточки записи кнопкой «Отправить напоминание».',
+  { key: 'reminder', title: 'Напоминание', hint: 'Напоминание за день до записи: «Напоминания на завтра» на Главной и в «Оповещениях», а также кнопка в карточке записи.',
     text: 'Здравствуйте, {имя}! Напоминаем о записи {дата} в {время}: {услуга}. Адрес: {адрес}. До встречи!' },
-  { key: 'confirmation', title: 'Подтверждение', hint: 'Подтверждение новой записи.',
+  { key: 'confirmation', title: 'Подтверждение', hint: 'Предлагается отправить сразу после создания записи и из карточки записи.',
     text: '{имя}, вы записаны на {услуга} {дата} в {время}. Стоимость: {цена}. Адрес: {адрес}.' },
+  { key: 'reschedule', title: 'Перенос записи', hint: 'Предлагается отправить после переноса записи на другое время.',
+    text: '{имя}, ваша запись перенесена: {услуга} {дата} в {время}. Адрес: {адрес}. Если время неудобно — напишите мне.' },
   { key: 'freeSlots', title: 'Свободные окна', hint: 'Предложение свободного времени (в том числе для листа ожидания).',
     text: '{имя}, здравствуйте! Появилось свободное время для записи: {окна}. Хотите записаться?' },
   { key: 'birthday', title: 'Поздравление с ДР', hint: 'Поздравление с днём рождения.',
@@ -65,28 +74,94 @@ export async function renderTemplate(key, vars) {
   return fillTemplate(templates.get(key) || '', vars);
 }
 
+// ---------- Номер телефона ----------
+
+/** Код страны по умолчанию: из настроек, иначе по телефону мастера в профиле */
+let countryCode = '';
+
+/** Вызывается из app.js при запуске и после изменения настроек */
+export function configureMessaging(settings, profile) {
+  countryCode = defaultCountryCode(settings, profile);
+}
+
+export function defaultCountryCode(settings, profile) {
+  const own = String(settings?.phoneCountryCode ?? '').replace(/\D/g, '');
+  return own || guessCountryCode(profile?.phone);
+}
+
+/** Номер клиента в международном формате (только цифры) */
+export function clientPhone(client) {
+  return waPhone(client?.phone, countryCode);
+}
+
+// ---------- Открытие мессенджеров ----------
+
+/** Ссылка на чат WhatsApp (для кнопок в карточках клиента и записи) */
+export function whatsappChatUrl(client, text = '') {
+  return whatsappUrl(clientPhone(client), text, { app: isMobileDevice() });
+}
+
 /** Ссылка на мессенджер с готовым текстом */
 export function messengerUrl(channel, client, text) {
-  const digits = phoneDigits(client?.phone);
-  if (channel === 'telegram') {
-    // У Telegram нет надёжной ссылки «написать по номеру с текстом» — открываем чат, текст копируется
-    if (client?.telegram) return `https://t.me/${client.telegram.replace(/^@/, '')}`;
-    return digits ? `https://t.me/+${digits}` : null;
+  const digits = clientPhone(client);
+  // У Telegram нет надёжной ссылки «написать по номеру с текстом» — открываем чат, текст копируется
+  if (channel === 'telegram') return telegramUrl(digits, client?.telegram);
+  return whatsappUrl(digits, text, { app: isMobileDevice() });
+}
+
+/**
+ * Открыть ссылку мессенджера. Схема приложения (whatsapp://) открывается переходом,
+ * https — в новой вкладке. Если приложение не открылось, предлагаем запасную ссылку.
+ */
+export function openExternal(url, fallbackUrl = null) {
+  if (/^https?:/.test(url)) {
+    window.open(url, '_blank', 'noopener');
+    return;
   }
-  return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : null;
+  let left = false;
+  const mark = () => { left = true; };
+  const onVis = () => { if (document.hidden) left = true; };
+  document.addEventListener('visibilitychange', onVis);
+  window.addEventListener('blur', mark);
+  window.addEventListener('pagehide', mark);
+  location.href = url;
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', onVis);
+    window.removeEventListener('blur', mark);
+    window.removeEventListener('pagehide', mark);
+    if (left || !fallbackUrl) return;
+    toast('WhatsApp не открылся', {
+      duration: 8000,
+      action: { label: 'Через wa.me', onClick: () => { window.open(fallbackUrl, '_blank', 'noopener'); } },
+    });
+  }, 2000);
+}
+
+/** Открыть чат WhatsApp с клиентом (без сохранения в историю) */
+export function openWhatsApp(client, text = '') {
+  const digits = clientPhone(client);
+  const url = whatsappUrl(digits, text, { app: isMobileDevice() });
+  if (!url) return false;
+  openExternal(url, whatsappUrl(digits, text, { app: false }));
+  return true;
 }
 
 /**
  * Отправить сообщение: открыть мессенджер и сохранить копию в истории.
+ * Мессенджер открывается сразу, до записи в базу, — пока действует нажатие пользователя.
  * @returns {Promise<boolean>} удалось ли открыть мессенджер
  */
 export async function sendMessage({ client, text, channel = 'whatsapp', kind = 'custom', appointmentId = null }) {
-  const url = messengerUrl(channel, client, text);
-  if (!url) return false;
   if (channel === 'telegram') {
-    try { await navigator.clipboard.writeText(text); } catch { /* буфер может быть недоступен */ }
+    const url = messengerUrl('telegram', client, text);
+    if (!url) return false;
+    // Копируем текст до открытия: Safari разрешает запись в буфер только сразу после нажатия
+    const copied = navigator.clipboard?.writeText(text).catch(() => {});
+    window.open(url, '_blank', 'noopener');
+    await copied;
+  } else if (!openWhatsApp(client, text)) {
+    return false;
   }
-  window.open(url, '_blank', 'noopener');
   await data.save('messages', { clientId: client.id, appointmentId, channel, kind, text, at: new Date().toISOString() });
   return true;
 }

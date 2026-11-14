@@ -9,6 +9,7 @@ import { getDayHours, findConflicts } from '../utils/slots.js';
 import { today, toMin, fromMin, addDays, formatDuration, formatDayShort, roundUp, nowMin } from '../utils/dates.js';
 import { moneyFull, parseMoney, centsToInput } from '../utils/money.js';
 import { calcTotal, REPEAT_OPTIONS } from '../utils/appt.js';
+import { offerClientMessage } from './notify.js';
 import { canPickContacts, pickContact, findClientByPhone, CONTACTS_HINT } from '../utils/contacts.js';
 
 /** Сколько повторов создавать для серии (примерно на 3 месяца вперёд) */
@@ -318,6 +319,7 @@ export async function openAppointmentForm(opts = {}) {
       return false;
     }
     saving = true;
+    let after = null;
     try {
       let clientId = st.clientId;
       if (!clientId && st.newClient) {
@@ -339,13 +341,15 @@ export async function openAppointmentForm(opts = {}) {
       };
       if (editing) {
         const moved = editing.date !== st.date || editing.start !== st.start;
-        await data.save('appointments', {
+        const saved = await data.save('appointments', {
           ...editing, ...base, date: st.date, start: st.start,
           // При переносе напоминание нужно отправить заново
           reminderSentAt: moved ? null : editing.reminderSentAt,
         });
         await syncPrepay(editing.id, st.prepaid, st.date);
         toast(moved ? 'Запись перенесена' : 'Запись сохранена');
+        // Перенесли запись — предложить сообщить клиенту новое время
+        if (moved) after = () => offerClientMessage(saved, 'reschedule');
       } else {
         const dates = [st.date];
         if (st.repeat) for (let d = addDays(st.date, st.repeat * 7); d <= addDays(st.date, SERIES_DAYS); d = addDays(d, st.repeat * 7)) dates.push(d);
@@ -363,8 +367,12 @@ export async function openAppointmentForm(opts = {}) {
           undo: async () => { for (const a of created) await data.remove('appointments', a.id); },
         });
         opts.onSaved?.(created[0]);
+        // Новая запись — предложить отправить клиенту подтверждение в WhatsApp
+        after = () => offerClientMessage(created[0], 'confirmation');
       }
       sheet?.close();
+      // Лист с сообщением открываем, когда форма уже уехала вниз
+      if (after) setTimeout(after, 350);
       return true;
     } finally {
       saving = false;

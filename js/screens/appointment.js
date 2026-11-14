@@ -6,8 +6,10 @@ import { icon } from '../components/icons.js';
 import { openAppointmentForm } from '../components/appointment-form.js';
 import { fromMin, formatDayShort, formatDuration } from '../utils/dates.js';
 import { moneyFull } from '../utils/money.js';
-import { STATUSES, PAYMENT_METHODS, phoneDigits } from '../utils/appt.js';
-import { renderTemplate, templateVars, sendMessage } from '../messaging.js';
+import { STATUSES, PAYMENT_METHODS } from '../utils/appt.js';
+import { renderTemplate, templateVars, sendMessage, clientPhone, whatsappChatUrl } from '../messaging.js';
+import { telegramUrl } from '../utils/phone.js';
+import { addToCalendar } from '../components/notify.js';
 
 export function AppointmentScreen({ id }, nav) {
   const root = el('div', { class: 'page page-white-top' });
@@ -25,7 +27,7 @@ export function AppointmentScreen({ id }, nav) {
     ]);
     const paid = payments.reduce((s, p) => s + p.amount, 0);
     const rest = Math.max(0, a.total - paid);
-    const digits = phoneDigits(client?.phone);
+    const digits = clientPhone(client);
     const location = locations.find((l) => l.id === a.locationId) || locations[0];
 
     // --- Клиент ---
@@ -35,8 +37,8 @@ export function AppointmentScreen({ id }, nav) {
       client?.phone ? el('div', { class: 'appt-head-phone' }, client.phone) : null,
       el('div', { class: 'contact-row' },
         contactBtn('phone', 'Позвонить', digits ? `tel:+${digits}` : null),
-        contactBtn('whatsapp', 'WhatsApp', digits ? `https://wa.me/${digits}` : null),
-        contactBtn('send', 'Telegram', digits ? `https://t.me/+${digits}` : null)));
+        contactBtn('whatsapp', 'WhatsApp', whatsappChatUrl(client)),
+        contactBtn('send', 'Telegram', telegramUrl(digits, client?.telegram))));
 
     // --- Статус ---
     const statusRow = el('div', { class: 'status-chips' });
@@ -76,6 +78,9 @@ export function AppointmentScreen({ id }, nav) {
     if (a.status === 'scheduled') {
       actions.appendChild(el('button', { class: 'btn btn-outline', type: 'button', disabled: !digits, onclick: () => sendByTemplate('confirmation', a, client, profile, location) }, 'Отправить подтверждение'));
     }
+    if (a.status !== 'cancelled' && a.status !== 'completed') {
+      actions.appendChild(el('button', { class: 'btn btn-outline', type: 'button', onclick: () => addToCalendar(a) }, 'Добавить в Календарь'));
+    }
     actions.appendChild(el('div', { class: 'btn-row' },
       el('button', { class: 'btn btn-outline', type: 'button', onclick: () => openAppointmentForm({ appointment: a, focus: 'time' }) }, 'Перенести'),
       el('button', { class: 'btn btn-outline', type: 'button', onclick: () => openAppointmentForm({ appointment: a }) }, 'Изменить')));
@@ -98,7 +103,8 @@ export function AppointmentScreen({ id }, nav) {
 
   function contactBtn(ic, label, href) {
     if (!href) return el('button', { class: 'contact-btn', type: 'button', disabled: true, onclick: () => toast('У клиента нет телефона') }, el('span', { html: icon(ic) }), el('span', {}, label));
-    return el('a', { class: 'contact-btn', href, target: ic === 'phone' ? '_self' : '_blank', rel: 'noopener' }, el('span', { html: icon(ic) }), el('span', {}, label));
+    // Ссылки на приложения (tel:, whatsapp://) открываем на месте, сайты — в новой вкладке
+    return el('a', { class: 'contact-btn', href, target: /^https?:/.test(href) ? '_blank' : '_self', rel: 'noopener' }, el('span', { html: icon(ic) }), el('span', {}, label));
   }
 
   async function setStatus(a, status) {
