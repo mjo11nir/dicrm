@@ -12,6 +12,7 @@ import { AlertsScreen } from './alerts.js';
 import { HelpScreen } from './help.js';
 import { ClientsScreen } from './clients.js';
 import { BackupScreen, backupDue } from './backup.js';
+import { openTomorrowReminders, tomorrowAppointments } from '../components/notify.js';
 import { getDayHours } from '../utils/slots.js';
 import {
   today, addDays, startOfWeek, startOfMonth, endOfMonth, fromMin, formatDayShort,
@@ -76,7 +77,14 @@ export function HomeScreen(params, nav) {
       backupCard.hidden = true;
     } }));
 
-  root.append(dayCard, backupCard, createCard, el('div', { class: 'two-cards' }, clientsCard, financeCard), quick);
+  // Напоминания клиентам на завтра: видно, пока не всем отправили
+  const remindText = el('span', {});
+  const remindCard = el('div', { class: 'card backup-card remind-card', hidden: true },
+    el('button', { class: 'backup-main', type: 'button', onclick: () => openTomorrowReminders() },
+      el('b', {}, 'Напомните клиентам о завтрашних записях'), remindText),
+    el('span', { class: 'row-chevron', html: icons.chevronRight }));
+
+  root.append(dayCard, remindCard, backupCard, createCard, el('div', { class: 'two-cards' }, clientsCard, financeCard), quick);
 
   // Сжатие шапки при прокрутке: имя уходит, появляется дата выбранного дня
   requestAnimationFrame(() => {
@@ -86,10 +94,17 @@ export function HomeScreen(params, nav) {
 
   async function refresh() {
     const t = today();
-    const [profile, { schedule, exceptions }, dayAppts, clientsMap, monthAppts] = await Promise.all([
+    const [profile, { schedule, exceptions }, dayAppts, clientsMap, monthAppts, tmrAppts] = await Promise.all([
       data.getProfile(), data.getScheduleData(), data.getAppointmentsByDate(selected),
       data.getClientsMap(), data.getAppointmentsBetween(startOfMonth(t), endOfMonth(t)),
+      data.getAppointmentsByDate(addDays(t, 1)),
     ]);
+
+    // Сколько клиентов на завтра ещё без напоминания
+    const notReminded = nav.app.settings?.dayBeforeReminders === false ? []
+      : tomorrowAppointments(tmrAppts, t).filter((a) => !a.reminderSentAt && clientsMap.get(a.clientId)?.phone);
+    remindCard.hidden = !notReminded.length;
+    remindText.textContent = `Не отправлено: ${notReminded.length} из ${tomorrowAppointments(tmrAppts, t).length}. Нажмите, чтобы отправить в WhatsApp.`;
 
     // Фон Главной можно выключить в настройках
     root.classList.toggle('no-bg', nav.app.settings?.homeBackground === false);

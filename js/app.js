@@ -8,7 +8,8 @@
 //   onShow  — вызывается, когда экран снова становится видимым.
 
 import { seedIfEmpty } from './demo.js';
-import { getSettings } from './db.js';
+import { getSettings, getProfile } from './db.js';
+import { configureMessaging } from './messaging.js';
 import { setCurrency } from './utils/money.js';
 import { icons } from './components/icons.js';
 import { el, toast } from './components/ui.js';
@@ -214,6 +215,7 @@ async function start() {
   }
   app.settings = await getSettings();
   applySettings(app.settings);
+  configureMessaging(app.settings, await getProfile());
 
   const panes = el('main', { class: 'panes' });
   for (const t of TABS) {
@@ -231,6 +233,7 @@ async function start() {
   window.addEventListener('db:change', async () => {
     app.settings = await getSettings();
     applySettings(app.settings);
+    configureMessaging(app.settings, await getProfile());
     onDataChange();
   });
 
