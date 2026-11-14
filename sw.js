@@ -5,7 +5,7 @@
 //  • библиотеки с CDN — из кэша, сеть только если их там нет.
 // При выпуске новой версии увеличьте VERSION — старый кэш удалится.
 
-const VERSION = 'v4.2.0';
+const VERSION = 'v4.2.1';
 const APP_CACHE = `beauty-crm-app-${VERSION}`;
 const CDN_CACHE = 'beauty-crm-cdn-v1';
 

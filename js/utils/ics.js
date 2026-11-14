@@ -96,3 +96,41 @@ export function buildIcs(appointments, clientsMap, { name = 'Beauty CRM', locati
   lines.push('END:VCALENDAR');
   return lines.filter(Boolean).map(fold).join('\r\n') + '\r\n';
 }
+
+const BYDAY = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+
+/**
+ * Одно повторяющееся событие «Напомнить клиентам о завтрашних записях»:
+ * добавляется в Календарь один раз и каждый вечер перед рабочим днём присылает уведомление.
+ * @param {{time: number, weekdays: number[], from: string, url?: string}} o
+ *   time — минуты от полуночи; weekdays — дни, когда напоминать (0 = пн); from — дата начала YYYY-MM-DD
+ */
+export function buildDailyReminderIcs({ time, weekdays, from, url = '' }) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+  const days = [...new Set(weekdays)].sort().map((i) => BYDAY[i]);
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Beauty CRM//RU',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    // Постоянный UID: повторный импорт обновит событие, а не создаст второе
+    'UID:daily-reminder@beauty-crm',
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${dt(from, time)}`,
+    `DTEND:${dt(from, time + 10)}`,
+    `RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')}`,
+    `SUMMARY:${esc('Напомнить клиентам о завтрашних записях')}`,
+    `DESCRIPTION:${esc('Откройте Beauty CRM — на Главной карточка «Напомните клиентам о завтрашних записях».' + (url ? `\n${url}` : ''))}`,
+    url ? `URL:${url}` : null,
+    'BEGIN:VALARM',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:${esc('Напомните клиентам о завтрашних записях')}`,
+    'TRIGGER:PT0S',
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ];
+  return lines.filter(Boolean).map(fold).join('\r\n') + '\r\n';
+}

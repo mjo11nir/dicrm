@@ -2,10 +2,10 @@
 // с переменными {имя} {дата} {время} {услуга} {адрес} {цена} {окна}.
 
 import * as data from '../db.js';
-import { el, navBar, groupedList, openSheet, toast, toggle, field, actionSheet } from '../components/ui.js';
+import { el, navBar, groupedList, openSheet, toast, toggle, field } from '../components/ui.js';
 import { TEMPLATE_DEFS, TEMPLATE_VARS, getTemplates, saveTemplate, defaultCountryCode } from '../messaging.js';
-import { openTomorrowReminders, calendarAlarmsLabel } from '../components/notify.js';
-import { CALENDAR_ALARMS } from '../utils/ics.js';
+import { openTomorrowReminders, openDailyReminderSetup } from '../components/notify.js';
+import { fromMin } from '../utils/dates.js';
 import { waPhone } from '../utils/phone.js';
 
 export function TemplatesScreen(params, nav) {
@@ -24,8 +24,8 @@ export function TemplatesScreen(params, nav) {
         { title: 'Отправить напоминания на завтра', onClick: () => openTomorrowReminders() },
       ], { header: 'WhatsApp', footer: 'Приложение открывает WhatsApp с готовым текстом — остаётся нажать «Отправить». Номер дополняется кодом страны автоматически.' }),
       groupedList([
-        { title: 'Напоминание мне', value: calendarAlarmsLabel(settings.calendarAlarms), onClick: () => pickAlarms(settings) },
-      ], { header: 'Календарь iPhone', footer: 'Добавьте запись в Календарь (кнопка в записи или «Синхронизация с календарем») — iPhone пришлёт уведомление за день, даже если приложение закрыто.' }),
+        { title: 'Напоминание мне', value: settings.dailyReminderAddedAt ? `в ${fromMin(settings.dailyReminderTime ?? 1080)}` : 'не настроено', onClick: () => openDailyReminderSetup() },
+      ], { header: 'Календарь iPhone', footer: 'Настраивается один раз: каждый вечер перед рабочим днём iPhone напомнит разослать клиентам напоминания, даже если приложение закрыто.' }),
       groupedList([
         { title: 'Автоматическая отправка', badge: 'Скоро', onClick: () => toast('Отправка без вашего участия появится после подключения сервера и WhatsApp Business API', { duration: 4500 }) },
       ]),
@@ -60,18 +60,6 @@ export function TemplatesScreen(params, nav) {
         toast('Код страны сохранён');
         return true;
       },
-    });
-  }
-
-  function pickAlarms(settings) {
-    const cur = settings.calendarAlarms || 'day';
-    actionSheet({
-      title: 'Напоминание в Календаре',
-      message: 'Для записей, которые вы добавляете в Календарь iPhone.',
-      actions: Object.entries(CALENDAR_ALARMS).map(([value, a]) => ({
-        label: a.label + (value === cur ? ' ✓' : ''),
-        onClick: () => data.setSetting('calendarAlarms', value),
-      })),
     });
   }
 

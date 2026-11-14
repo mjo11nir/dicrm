@@ -1,19 +1,19 @@
 // Уведомления клиентам и мастеру без сервера:
 //  • offerClientMessage — лист после создания или переноса записи: отправить клиенту
-//    подтверждение в WhatsApp (текст можно поправить) и добавить запись в Календарь iPhone;
+//    подтверждение в WhatsApp (текст можно поправить);
 //  • openTomorrowReminders — «Напоминания на завтра»: все записи на завтра, по кнопке
 //    WhatsApp открывается с готовым напоминанием, запись помечается «напомнили»;
-//  • addToCalendar — одна запись в .ics с напоминанием за день (Календарь покажет
-//    уведомление, даже когда приложение закрыто).
+//  • openDailyReminderSetup — один раз добавить в Календарь iPhone повторяющееся
+//    напоминание мастеру «Напомнить клиентам о завтрашних записях» (вечером перед рабочими днями).
 //
 // Само сообщение отправляет мастер — одним нажатием «Отправить» в WhatsApp.
 // Отправка без участия человека требует сервера и WhatsApp Business API.
 
 import * as data from '../db.js';
-import { el, openSheet, toast, downloadFile } from './ui.js';
+import { el, openSheet, toast, downloadFile, field } from './ui.js';
 import { renderTemplate, templateVars, sendMessage, clientPhone } from '../messaging.js';
-import { buildIcs, CALENDAR_ALARMS } from '../utils/ics.js';
-import { today, addDays, fromMin, formatDayShort } from '../utils/dates.js';
+import { buildDailyReminderIcs } from '../utils/ics.js';
+import { today, addDays, fromMin, formatDayShort, weekdayIndex } from '../utils/dates.js';
 import { servicesTitle } from '../utils/appt.js';
 import { isBlocking } from '../utils/slots.js';
 
@@ -29,19 +29,6 @@ async function varsFor(a, client) {
   const [profile, locations] = await Promise.all([data.getProfile(), data.getAll('locations')]);
   const location = locations.find((l) => l.id === a.locationId) || locations[0];
   return templateVars({ client, appointment: a, profile, location });
-}
-
-/** Скачать .ics с одной записью и напоминаниями из настроек */
-export async function addToCalendar(a) {
-  const [clientsMap, locations, settings] = await Promise.all([data.getClientsMap(), data.getAll('locations'), data.getSettings()]);
-  const alarms = settings.calendarAlarms || 'day';
-  const ics = buildIcs([a], clientsMap, {
-    name: settings.appName,
-    location: locations.find((l) => l.id === a.locationId) || locations[0],
-    alarms: alarms === 'none' ? 'day' : alarms,
-  });
-  downloadFile(`zapis-${a.date}-${fromMin(a.start).replace(':', '')}.ics`, ics, 'text/calendar');
-  toast('Откройте файл — Календарь предложит добавить запись', { duration: 4500 });
 }
 
 /**
@@ -74,9 +61,6 @@ export async function offerClientMessage(a, kind = 'confirmation') {
   const buttons = el('div', { class: 'appt-actions' },
     hasPhone ? el('button', { class: 'btn btn-primary', type: 'button', onclick: () => send('whatsapp') }, 'Отправить в WhatsApp') : null,
     el('button', { class: 'btn btn-outline', type: 'button', onclick: () => send('telegram') }, 'Отправить в Telegram'),
-    settings.calendarAlarms !== 'none'
-      ? el('button', { class: 'btn btn-outline', type: 'button', onclick: () => addToCalendar(a) }, 'Добавить в Календарь iPhone')
-      : null,
     status);
 
   const sheet = openSheet({
@@ -140,7 +124,39 @@ export async function openTomorrowReminders() {
   openSheet({ title: 'Напоминания на завтра', content: body, full: list.length > 4 });
 }
 
-/** Подпись для настройки напоминаний в Календаре */
-export function calendarAlarmsLabel(v) {
-  return (CALENDAR_ALARMS[v || 'day'] || CALENDAR_ALARMS.day).label;
+/** Дни недели (0 = пн), вечером которых напоминать: накануне каждого рабочего дня */
+export function reminderWeekdays(schedule) {
+  return schedule.filter((d) => d.isWorking).map((d) => (d.weekday + 6) % 7);
+}
+
+/** Настройка ежедневного напоминания мастеру через Календарь iPhone (делается один раз) */
+export async function openDailyReminderSetup() {
+  const [settings, { schedule }] = await Promise.all([data.getSettings(), data.getScheduleData()]);
+  const timeIn = el('input', { class: 'input', type: 'time', step: 300, value: fromMin(settings.dailyReminderTime ?? 1080) });
+  const days = reminderWeekdays(schedule);
+  const names = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+  openSheet({
+    title: 'Напоминание мне',
+    content: el('div', { class: 'form' },
+      el('div', { class: 'hint' }, 'Настраивается один раз. В Календаре iPhone появится повторяющееся событие «Напомнить клиентам о завтрашних записях» — каждый вечер перед рабочим днём придёт уведомление, даже если приложение закрыто. Откройте приложение и разошлите напоминания с Главной.'),
+      el('div', { class: 'form-section' }, field('Во сколько напоминать', timeIn,
+        days.length ? `Дни: ${days.sort().map((i) => names[i]).join(', ')} — накануне рабочих дней по графику` : 'В графике нет рабочих дней')),
+      el('div', { class: 'hint' }, 'После нажатия откройте скачанный файл и нажмите «Добавить». Если поменяете время или график — добавьте ещё раз, событие обновится, а не продублируется.')),
+    actionText: 'Добавить',
+    cancelText: 'Отмена',
+    onAction: async () => {
+      if (!days.length) { toast('Сначала задайте рабочие дни в графике'); return false; }
+      const [h, m] = (timeIn.value || '18:00').split(':').map(Number);
+      const time = h * 60 + m;
+      await data.setSetting('dailyReminderTime', time);
+      await data.setSetting('dailyReminderAddedAt', new Date().toISOString());
+      const url = location.href.split('#')[0].split('?')[0];
+      // Первое событие — в ближайший день из правила (Календарь показывает и сам DTSTART)
+      let from = today();
+      while (!days.includes(weekdayIndex(from))) from = addDays(from, 1);
+      downloadFile('napominanie.ics', buildDailyReminderIcs({ time, weekdays: days, from, url }), 'text/calendar');
+      toast('Откройте файл — Календарь предложит добавить напоминание', { duration: 4500 });
+      return true;
+    },
+  });
 }

@@ -9,7 +9,6 @@ import { moneyFull } from '../utils/money.js';
 import { STATUSES, PAYMENT_METHODS } from '../utils/appt.js';
 import { renderTemplate, templateVars, sendMessage, clientPhone, whatsappChatUrl } from '../messaging.js';
 import { telegramUrl } from '../utils/phone.js';
-import { addToCalendar } from '../components/notify.js';
 
 export function AppointmentScreen({ id }, nav) {
   const root = el('div', { class: 'page page-white-top' });
@@ -77,9 +76,6 @@ export function AppointmentScreen({ id }, nav) {
       a.reminderSentAt ? 'Отправить напоминание ещё раз' : 'Отправить напоминание'));
     if (a.status === 'scheduled') {
       actions.appendChild(el('button', { class: 'btn btn-outline', type: 'button', disabled: !digits, onclick: () => sendByTemplate('confirmation', a, client, profile, location) }, 'Отправить подтверждение'));
-    }
-    if (a.status !== 'cancelled' && a.status !== 'completed') {
-      actions.appendChild(el('button', { class: 'btn btn-outline', type: 'button', onclick: () => addToCalendar(a) }, 'Добавить в Календарь'));
     }
     actions.appendChild(el('div', { class: 'btn-row' },
       el('button', { class: 'btn btn-outline', type: 'button', onclick: () => openAppointmentForm({ appointment: a, focus: 'time' }) }, 'Перенести'),
